@@ -2,7 +2,9 @@ import { sql } from '../_lib/db.js'
 import { withErrorHandling, methodNotAllowed } from '../_lib/http.js'
 
 export default withErrorHandling(async (req, res) => {
-  if (req.method === 'GET') {
+  const id = req.query.id?.[0]
+
+  if (!id && req.method === 'GET') {
     const { tipo } = req.query
     const rows =
       tipo === 'gasto' || tipo === 'ingreso'
@@ -11,7 +13,7 @@ export default withErrorHandling(async (req, res) => {
     return res.status(200).json(rows)
   }
 
-  if (req.method === 'POST') {
+  if (!id && req.method === 'POST') {
     const { nombre, tipo, color } = req.body || {}
     if (!nombre || !tipo) {
       return res.status(400).json({ error: 'nombre y tipo son requeridos' })
@@ -27,5 +29,25 @@ export default withErrorHandling(async (req, res) => {
     return res.status(201).json(row)
   }
 
-  return methodNotAllowed(res, ['GET', 'POST'])
+  if (id && req.method === 'PUT') {
+    const { nombre, tipo, color } = req.body || {}
+    if (!nombre || !tipo) {
+      return res.status(400).json({ error: 'nombre y tipo son requeridos' })
+    }
+    const [row] = await sql`
+      UPDATE categories SET nombre = ${nombre}, tipo = ${tipo}, color = ${color || null}
+      WHERE id = ${id}
+      RETURNING *
+    `
+    if (!row) return res.status(404).json({ error: 'Categoría no encontrada' })
+    return res.status(200).json(row)
+  }
+
+  if (id && req.method === 'DELETE') {
+    const [row] = await sql`DELETE FROM categories WHERE id = ${id} RETURNING id`
+    if (!row) return res.status(404).json({ error: 'Categoría no encontrada' })
+    return res.status(204).end()
+  }
+
+  return methodNotAllowed(res, id ? ['PUT', 'DELETE'] : ['GET', 'POST'])
 })

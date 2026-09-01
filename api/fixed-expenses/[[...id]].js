@@ -2,7 +2,9 @@ import { sql } from '../_lib/db.js'
 import { withErrorHandling, methodNotAllowed } from '../_lib/http.js'
 
 export default withErrorHandling(async (req, res) => {
-  if (req.method === 'GET') {
+  const id = req.query.id?.[0]
+
+  if (!id && req.method === 'GET') {
     const rows = await sql`
       SELECT fe.*, c.nombre AS categoria_nombre,
         COALESCE(cd.nombre, ac.nombre, 'Efectivo') AS payment_method_nombre
@@ -16,7 +18,7 @@ export default withErrorHandling(async (req, res) => {
     return res.status(200).json(rows)
   }
 
-  if (req.method === 'POST') {
+  if (!id && req.method === 'POST') {
     const { nombre, monto, dia_del_mes, categoria_id, payment_method_id, activo_desde, activo_hasta } = req.body || {}
     if (!nombre || !monto || !dia_del_mes || !activo_desde) {
       return res.status(400).json({ error: 'nombre, monto, dia_del_mes y activo_desde son requeridos' })
@@ -32,5 +34,27 @@ export default withErrorHandling(async (req, res) => {
     return res.status(201).json(row)
   }
 
-  return methodNotAllowed(res, ['GET', 'POST'])
+  if (id && req.method === 'PUT') {
+    const { nombre, monto, dia_del_mes, categoria_id, payment_method_id, activo_desde, activo_hasta } = req.body || {}
+    if (!nombre || !monto || !dia_del_mes || !activo_desde) {
+      return res.status(400).json({ error: 'nombre, monto, dia_del_mes y activo_desde son requeridos' })
+    }
+    const [row] = await sql`
+      UPDATE fixed_expenses SET nombre = ${nombre}, monto = ${monto}, dia_del_mes = ${dia_del_mes},
+        categoria_id = ${categoria_id || null}, payment_method_id = ${payment_method_id || null},
+        activo_desde = ${activo_desde}, activo_hasta = ${activo_hasta || null}
+      WHERE id = ${id}
+      RETURNING *
+    `
+    if (!row) return res.status(404).json({ error: 'Gasto fijo no encontrado' })
+    return res.status(200).json(row)
+  }
+
+  if (id && req.method === 'DELETE') {
+    const [row] = await sql`DELETE FROM fixed_expenses WHERE id = ${id} RETURNING id`
+    if (!row) return res.status(404).json({ error: 'Gasto fijo no encontrado' })
+    return res.status(204).end()
+  }
+
+  return methodNotAllowed(res, id ? ['PUT', 'DELETE'] : ['GET', 'POST'])
 })
