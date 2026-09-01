@@ -14,9 +14,16 @@ function addMonth(anio, mes) {
   return mes === 12 ? { anio: anio + 1, mes: 1 } : { anio, mes: mes + 1 }
 }
 
-// fecha: 'YYYY-MM-DD'. Devuelve { anio, mes } (mes 1-indexado) del ciclo de cierre.
+// El driver de Postgres devuelve las columnas `date` como objetos Date, no
+// como 'YYYY-MM-DD'. Normalizamos siempre a string antes de operar.
+function toDateStr(fecha) {
+  if (fecha instanceof Date) return fecha.toISOString().slice(0, 10)
+  return fecha
+}
+
+// fecha: 'YYYY-MM-DD' o Date. Devuelve { anio, mes } (mes 1-indexado) del ciclo de cierre.
 export function getCicloTarjeta(fecha, cierreDia) {
-  const [anio, mes, dia] = fecha.split('-').map(Number)
+  const [anio, mes, dia] = toDateStr(fecha).split('-').map(Number)
   const cierreDelMes = clampDay(anio, mes, cierreDia)
   return dia <= cierreDelMes ? { anio, mes } : addMonth(anio, mes)
 }
@@ -31,7 +38,7 @@ export function getFechaVencimiento(cicloAnio, cicloMes, vencimientoDia, cierreD
 // Mes efectivo ('YYYY-MM') al que se atribuye una transacción: el ciclo de
 // cierre si es con tarjeta, o el mes calendario si es cuenta/efectivo.
 export function mesEfectivo(fecha, cierreDia) {
-  if (cierreDia == null) return fecha.slice(0, 7)
+  if (cierreDia == null) return toDateStr(fecha).slice(0, 7)
   const { anio, mes } = getCicloTarjeta(fecha, cierreDia)
   return `${anio}-${String(mes).padStart(2, '0')}`
 }
