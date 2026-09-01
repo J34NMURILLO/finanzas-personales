@@ -21,11 +21,15 @@ const RESOURCES = {
 }
 
 export default withErrorHandling(async (req, res) => {
-  const [resource, id] = req.query.resource || []
+  // Vercel expone el segmento catch-all bajo la clave literal "...resource"
+  // (con los puntos incluidos) para Functions genéricas fuera de Next.js.
+  const raw = req.query['...resource']
+  const segments = Array.isArray(raw) ? raw : raw ? [raw] : []
+  const [resource, id] = segments
   const handler = RESOURCES[resource]
 
   if (!handler) {
-    return res.status(404).json({ error: `Recurso desconocido: ${resource}`, debugQuery: req.query, debugUrl: req.url })
+    return res.status(404).json({ error: `Recurso desconocido: ${resource}` })
   }
 
   return handler(req, res, id)
