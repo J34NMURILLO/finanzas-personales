@@ -104,7 +104,7 @@ Reglas:
   const paymentMethodNombre = paymentMethods.find((p) => p.id === payment_method_id)?.nombre
 
   return res.status(200).json({
-    reply: `Listo, cargué $${monto} en ${categoriaNombre} con ${paymentMethodNombre} el ${transaction.fecha}.`,
+    reply: `Listo, cargué $${monto} en ${categoriaNombre} con ${paymentMethodNombre} el ${fecha || today}.`,
     transaction,
   })
 })
