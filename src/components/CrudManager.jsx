@@ -108,7 +108,7 @@ export default function CrudManager({ title, endpoint, fields, columns, related 
       const options = f.options || relatedData[f.optionsFrom] || []
       return (
         <select
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="w-full border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           value={form[f.name] ?? ''}
           onChange={(e) => setForm((s) => ({ ...s, [f.name]: e.target.value }))}
           required={f.required}
@@ -127,7 +127,7 @@ export default function CrudManager({ title, endpoint, fields, columns, related 
       return (
         <input
           type="checkbox"
-          className="h-4 w-4 rounded border-gray-300"
+          className="h-4 w-4 rounded border-gray-300 dark:border-gray-600"
           checked={!!form[f.name]}
           onChange={(e) => setForm((s) => ({ ...s, [f.name]: e.target.checked }))}
         />
@@ -140,7 +140,7 @@ export default function CrudManager({ title, endpoint, fields, columns, related 
         step={f.step}
         min={f.min}
         max={f.max}
-        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        className="w-full border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
         value={form[f.name] ?? ''}
         onChange={(e) => setForm((s) => ({ ...s, [f.name]: e.target.value }))}
         required={f.required}
@@ -151,7 +151,7 @@ export default function CrudManager({ title, endpoint, fields, columns, related 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{title}</h1>
         <button
           onClick={openCreate}
           className="bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-indigo-700"
@@ -161,24 +161,24 @@ export default function CrudManager({ title, endpoint, fields, columns, related 
       </div>
 
       {error && (
-        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-2">
+        <div className="mb-4 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 text-sm rounded-lg px-4 py-2">
           {error}
         </div>
       )}
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="mb-6 bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">
+        <form onSubmit={handleSubmit} className="mb-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 shadow-sm">
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
             {editingId ? 'Editar' : 'Nuevo registro'}
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {fields.map((f) => (
               <div key={f.name} className={f.type === 'checkbox' ? 'flex items-center gap-2' : ''}>
                 {f.type !== 'checkbox' && (
-                  <label className="block text-xs font-medium text-gray-500 mb-1">{f.label}</label>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{f.label}</label>
                 )}
                 {renderFieldInput(f)}
-                {f.type === 'checkbox' && <label className="text-xs text-gray-600">{f.label}</label>}
+                {f.type === 'checkbox' && <label className="text-xs text-gray-600 dark:text-gray-300">{f.label}</label>}
               </div>
             ))}
           </div>
@@ -193,7 +193,7 @@ export default function CrudManager({ title, endpoint, fields, columns, related 
             <button
               type="button"
               onClick={closeForm}
-              className="text-sm font-medium px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100"
+              className="text-sm font-medium px-4 py-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
             >
               Cancelar
             </button>
@@ -201,9 +201,9 @@ export default function CrudManager({ title, endpoint, fields, columns, related 
         </form>
       )}
 
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden shadow-sm">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+          <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">
             <tr>
               {columns.map((c) => (
                 <th key={c.key} className="text-left px-4 py-3 font-medium">
@@ -213,24 +213,24 @@ export default function CrudManager({ title, endpoint, fields, columns, related 
               <th className="px-4 py-3" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
             {loading ? (
               <tr>
-                <td colSpan={columns.length + 1} className="px-4 py-6 text-center text-gray-400">
+                <td colSpan={columns.length + 1} className="px-4 py-6 text-center text-gray-400 dark:text-gray-500">
                   Cargando...
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={columns.length + 1} className="px-4 py-6 text-center text-gray-400">
+                <td colSpan={columns.length + 1} className="px-4 py-6 text-center text-gray-400 dark:text-gray-500">
                   Sin registros todavía.
                 </td>
               </tr>
             ) : (
               rows.map((row) => (
-                <tr key={row.id} className="hover:bg-gray-50">
+                <tr key={row.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                   {columns.map((c) => (
-                    <td key={c.key} className="px-4 py-3 text-gray-700">
+                    <td key={c.key} className="px-4 py-3 text-gray-700 dark:text-gray-300">
                       {c.render ? c.render(row) : (row[c.key] ?? '—')}
                     </td>
                   ))}

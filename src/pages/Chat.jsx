@@ -46,14 +46,16 @@ export default function Chat() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-6rem)]">
-      <h1 className="text-xl font-semibold text-gray-900 mb-4">Cargar gasto por chat</h1>
+      <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">Cargar gasto por chat</h1>
 
-      <div className="flex-1 overflow-y-auto bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-3">
+      <div className="flex-1 overflow-y-auto bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 shadow-sm space-y-3">
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
               className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm ${
-                m.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-800'
+                m.role === 'user'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200'
               }`}
             >
               {m.content}
@@ -65,13 +67,13 @@ export default function Chat() {
         ))}
         {sending && (
           <div className="flex justify-start">
-            <div className="bg-gray-100 text-gray-400 rounded-2xl px-4 py-2 text-sm">Pensando...</div>
+            <div className="bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 rounded-2xl px-4 py-2 text-sm">Pensando...</div>
           </div>
         )}
         <div ref={bottomRef} />
       </div>
 
-      {error && <div className="mt-2 text-xs text-red-600">{error}</div>}
+      {error && <div className="mt-2 text-xs text-red-600 dark:text-red-400">{error}</div>}
 
       <form onSubmit={handleSend} className="mt-4 flex gap-2">
         <input
@@ -79,7 +81,7 @@ export default function Chat() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Escribí tu gasto..."
-          className="flex-1 border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="flex-1 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
         <button
           type="submit"

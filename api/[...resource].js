@@ -6,6 +6,7 @@ import income from './_lib/resources/income.js'
 import fixedExpenses from './_lib/resources/fixed-expenses.js'
 import installmentExpenses from './_lib/resources/installment-expenses.js'
 import paymentMethods from './_lib/resources/payment-methods.js'
+import reports from './_lib/resources/reports.js'
 
 // Router único: Vercel Hobby permite hasta 12 Serverless Functions por
 // deployment. En vez de un archivo por entidad (y otro por [id]), todo
@@ -18,6 +19,7 @@ const RESOURCES = {
   'fixed-expenses': fixedExpenses,
   'installment-expenses': installmentExpenses,
   'payment-methods': paymentMethods,
+  reports,
 }
 
 export default withErrorHandling(async (req, res) => {
