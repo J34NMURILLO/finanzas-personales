@@ -1,9 +1,7 @@
-import { sql } from '../_lib/db.js'
-import { withErrorHandling, methodNotAllowed } from '../_lib/http.js'
+import { sql } from '../db.js'
+import { methodNotAllowed } from '../http.js'
 
-export default withErrorHandling(async (req, res) => {
-  const id = req.query.id?.[0]
-
+export default async function accounts(req, res, id) {
   if (!id && req.method === 'GET') {
     const rows = await sql`SELECT * FROM accounts ORDER BY activa DESC, nombre`
     return res.status(200).json(rows)
@@ -48,4 +46,4 @@ export default withErrorHandling(async (req, res) => {
   }
 
   return methodNotAllowed(res, id ? ['PUT', 'DELETE'] : ['GET', 'POST'])
-})
+}

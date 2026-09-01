@@ -1,9 +1,7 @@
-import { sql } from '../_lib/db.js'
-import { withErrorHandling, methodNotAllowed } from '../_lib/http.js'
+import { sql } from '../db.js'
+import { methodNotAllowed } from '../http.js'
 
-export default withErrorHandling(async (req, res) => {
-  const id = req.query.id?.[0]
-
+export default async function fixedExpenses(req, res, id) {
   if (!id && req.method === 'GET') {
     const rows = await sql`
       SELECT fe.*, c.nombre AS categoria_nombre,
@@ -57,4 +55,4 @@ export default withErrorHandling(async (req, res) => {
   }
 
   return methodNotAllowed(res, id ? ['PUT', 'DELETE'] : ['GET', 'POST'])
-})
+}

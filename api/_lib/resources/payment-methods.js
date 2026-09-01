@@ -1,10 +1,10 @@
-import { sql } from '../_lib/db.js'
-import { withErrorHandling, methodNotAllowed } from '../_lib/http.js'
+import { sql } from '../db.js'
+import { methodNotAllowed } from '../http.js'
 
 // Solo lectura: los métodos de pago se crean/borran automáticamente
-// junto con las cuentas y tarjetas (ver /api/accounts y /api/cards).
-export default withErrorHandling(async (req, res) => {
-  if (req.method === 'GET') {
+// junto con las cuentas y tarjetas (ver accounts.js y cards.js).
+export default async function paymentMethods(req, res, id) {
+  if (!id && req.method === 'GET') {
     const rows = await sql`
       SELECT
         pm.id,
@@ -23,4 +23,4 @@ export default withErrorHandling(async (req, res) => {
   }
 
   return methodNotAllowed(res, ['GET'])
-})
+}
