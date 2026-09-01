@@ -25,7 +25,7 @@ export default withErrorHandling(async (req, res) => {
   const handler = RESOURCES[resource]
 
   if (!handler) {
-    return res.status(404).json({ error: `Recurso desconocido: ${resource}` })
+    return res.status(404).json({ error: `Recurso desconocido: ${resource}`, debugQuery: req.query, debugUrl: req.url })
   }
 
   return handler(req, res, id)
