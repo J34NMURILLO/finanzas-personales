@@ -88,19 +88,38 @@ async function cerrarMes(mes) {
   const { ingresos, gastos } = await ingresosGastosReales(mes)
   await upsertPeriodo(mes, { ingresos, gastos, cerrado: true })
   await avanzarCuotas(mes)
-
-  const mesProyectado = addMonths(mes, MESES_PROYECCION)
-  const { total: gastosProyectados } = await computeProjectedGasto(mesProyectado)
-  await upsertPeriodo(mesProyectado, { ingresos, gastos: gastosProyectados, cerrado: false })
-
   const retencion = await chequearRetencion(mes)
+  return { mes, ingresos, gastos, ahorro: ingresos - gastos, retencion }
+}
 
-  return { mes, ingresos, gastos, ahorro: ingresos - gastos, mesProyectado, gastosProyectados, retencion }
+// Refresca la ventana proyectada completa (los MESES_PROYECCION meses
+// siguientes al último mes cerrado) a partir del estado actual de gastos
+// fijos y cuotas. Se corre siempre, no solo cuando hay un mes nuevo para
+// cerrar, para que un alta/baja de un gasto fijo se refleje sin esperar
+// al próximo cierre real.
+async function refrescarProyeccion() {
+  const [ultimoCerrado] = await sql`
+    SELECT anio_mes, ingresos_totales FROM monthly_periods WHERE cerrado = true ORDER BY anio_mes DESC LIMIT 1
+  `
+  if (!ultimoCerrado) return []
+
+  const baseMes = toDateStr(ultimoCerrado.anio_mes).slice(0, 7)
+  const ingresosBase = Number(ultimoCerrado.ingresos_totales)
+
+  const proyectados = []
+  for (let i = 1; i <= MESES_PROYECCION; i++) {
+    const mes = addMonths(baseMes, i)
+    const { total: gastos } = await computeProjectedGasto(mes)
+    await upsertPeriodo(mes, { ingresos: ingresosBase, gastos, cerrado: false })
+    proyectados.push({ mes, ingresos: ingresosBase, gastos })
+  }
+  return proyectados
 }
 
 // Cierra todos los meses calendario completos que todavía no estén
 // marcados como cerrados, desde el último cierre (o el mes anterior al
-// actual si nunca se cerró nada) hasta el mes calendario anterior a hoy.
+// actual si nunca se cerró nada) hasta el mes calendario anterior a hoy, y
+// siempre refresca la ventana de proyección de los próximos 12 meses.
 // Idempotente: correrlo de nuevo el mismo día no duplica ni retrocede nada.
 export async function runMonthlyClose() {
   const mesActual = new Date().toISOString().slice(0, 7)
@@ -117,5 +136,7 @@ export async function runMonthlyClose() {
     cursor = addMonths(cursor, 1)
   }
 
-  return { ok: true, cerrados }
+  const proyectados = await refrescarProyeccion()
+
+  return { ok: true, cerrados, proyectados }
 }
