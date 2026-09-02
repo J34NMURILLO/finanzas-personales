@@ -4,6 +4,7 @@ import { applyTheme, getInitialTheme } from '../lib/theme'
 
 const NAV_ITEMS = [
   { to: '/', label: 'Resumen', end: true },
+  { to: '/proyeccion', label: 'Proyección' },
   { to: '/chat', label: 'Cargar gasto (chat)' },
   { to: '/categorias', label: 'Categorías' },
   { to: '/cuentas', label: 'Cuentas' },

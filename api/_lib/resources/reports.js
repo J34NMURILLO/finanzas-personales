@@ -1,17 +1,9 @@
 import { sql } from '../db.js'
 import { methodNotAllowed } from '../http.js'
-import { mesEfectivo } from '../billing-cycle.js'
+import { mesEfectivo, addMonths } from '../billing-cycle.js'
 
 function currentMonth() {
   return new Date().toISOString().slice(0, 7)
-}
-
-function addMonths(yyyyMm, delta) {
-  const [y, m] = yyyyMm.split('-').map(Number)
-  const total = y * 12 + (m - 1) + delta
-  const anio = Math.floor(total / 12)
-  const mes = (total % 12) + 1
-  return `${anio}-${String(mes).padStart(2, '0')}`
 }
 
 function monthRange(desde, hasta) {

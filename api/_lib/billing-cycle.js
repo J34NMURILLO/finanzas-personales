@@ -42,3 +42,19 @@ export function mesEfectivo(fecha, cierreDia) {
   const { anio, mes } = getCicloTarjeta(fecha, cierreDia)
   return `${anio}-${String(mes).padStart(2, '0')}`
 }
+
+// Suma/resta meses a un string 'YYYY-MM'.
+export function addMonths(yyyyMm, delta) {
+  const [y, m] = yyyyMm.split('-').map(Number)
+  const total = y * 12 + (m - 1) + delta
+  const anio = Math.floor(total / 12)
+  const mes = (total % 12) + 1
+  return `${anio}-${String(mes).padStart(2, '0')}`
+}
+
+// Diferencia en meses entre dos 'YYYY-MM' (b - a).
+export function monthsBetween(a, b) {
+  const [ya, ma] = a.split('-').map(Number)
+  const [yb, mb] = b.split('-').map(Number)
+  return (yb * 12 + mb) - (ya * 12 + ma)
+}

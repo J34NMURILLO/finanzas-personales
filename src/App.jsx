@@ -8,6 +8,7 @@ import Cards from './pages/Cards'
 import Income from './pages/Income'
 import FixedExpenses from './pages/FixedExpenses'
 import InstallmentExpenses from './pages/InstallmentExpenses'
+import Projection from './pages/Projection'
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
           <Route path="/ingresos" element={<Income />} />
           <Route path="/gastos-fijos" element={<FixedExpenses />} />
           <Route path="/cuotas" element={<InstallmentExpenses />} />
+          <Route path="/proyeccion" element={<Projection />} />
         </Route>
       </Routes>
     </BrowserRouter>
