@@ -37,7 +37,7 @@ export default function Projection() {
     setRunResult(null)
     setError('')
     try {
-      const result = await api.get('/cron')
+      const result = await api.post('/monthly-periods')
       setRunResult(result)
       await load()
     } catch (err) {
@@ -115,7 +115,7 @@ export default function Projection() {
                   <th className="text-left px-4 py-3 font-medium">Mes</th>
                   <th className="text-left px-4 py-3 font-medium">Ingresos</th>
                   <th className="text-left px-4 py-3 font-medium">Gastos</th>
-                  <th className="text-left px-4 py-3 font-medium">Ahorro</th>
+                  <th className="text-left px-4 py-3 font-medium">Te queda</th>
                   <th className="text-left px-4 py-3 font-medium">Estado</th>
                 </tr>
               </thead>
