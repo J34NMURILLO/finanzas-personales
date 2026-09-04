@@ -144,7 +144,7 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 shadow-sm">
-              <div className="text-xs text-gray-500 dark:text-gray-400">Gastos a pagar</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Gastos del mes</div>
               <div className="text-2xl font-semibold text-red-600 dark:text-red-400">
                 {formatMoney(report.totales.gastos)}
               </div>
