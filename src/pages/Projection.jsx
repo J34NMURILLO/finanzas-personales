@@ -50,8 +50,11 @@ export default function Projection() {
     }
   }
 
+  // El campo arranca vacío y muestra el importe actual como placeholder: es
+  // más predecible que preseleccionar el texto (React reposiciona el cursor
+  // al re-renderizar y el número tipeado quedaba concatenado al viejo).
   function abrirEdicion(periodo) {
-    setValorEditado(String(Number(periodo.ingresos_totales)))
+    setValorEditado('')
     setEditando(periodo.id)
   }
 
@@ -168,7 +171,7 @@ export default function Projection() {
                           inputMode="decimal"
                           autoFocus
                           value={valorEditado}
-                          onFocus={(e) => e.target.select()}
+                          placeholder={String(Number(p.ingresos_totales))}
                           onChange={(e) => setValorEditado(e.target.value)}
                           onBlur={() => guardarIngreso(p, valorEditado)}
                           onKeyDown={(e) => {
