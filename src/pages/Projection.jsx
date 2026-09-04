@@ -161,7 +161,11 @@ export default function Projection() {
                     <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
                       {editando === p.id ? (
                         <input
-                          type="number"
+                          // type="text" en vez de number: select() al enfocar no
+                          // funciona igual en los inputs numéricos y el importe
+                          // tipeado terminaba pegado al valor viejo.
+                          type="text"
+                          inputMode="decimal"
                           autoFocus
                           value={valorEditado}
                           onFocus={(e) => e.target.select()}
