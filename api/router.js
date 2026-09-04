@@ -12,7 +12,10 @@ import monthlyPeriods from './_lib/resources/monthly-periods.js'
 
 // Router único: Vercel Hobby permite hasta 12 Serverless Functions por
 // deployment. En vez de un archivo por entidad (y otro por [id]), todo
-// el CRUD entra por acá y se despacha según el primer segmento de la URL.
+// el CRUD entra por acá y se despacha según ?resource= (ver los rewrites
+// explícitos en vercel.json — la convención de archivo [...catchall].js
+// de Vercel NO matchea rutas de más de un segmento fuera de Next.js, así
+// que no se puede depender de eso para /api/recurso/:id).
 const RESOURCES = {
   categories,
   accounts,
@@ -27,11 +30,7 @@ const RESOURCES = {
 }
 
 export default withErrorHandling(async (req, res) => {
-  // Vercel expone el segmento catch-all bajo la clave literal "...resource"
-  // (con los puntos incluidos) para Functions genéricas fuera de Next.js.
-  const raw = req.query['...resource']
-  const segments = Array.isArray(raw) ? raw : raw ? [raw] : []
-  const [resource, id] = segments
+  const { resource, id } = req.query
   const handler = RESOURCES[resource]
 
   if (!handler) {

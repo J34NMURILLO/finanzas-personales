@@ -1,6 +1,22 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
+    { "source": "/api/categories", "destination": "/api/router?resource=categories" },
+    { "source": "/api/categories/:id", "destination": "/api/router?resource=categories&id=:id" },
+    { "source": "/api/accounts", "destination": "/api/router?resource=accounts" },
+    { "source": "/api/accounts/:id", "destination": "/api/router?resource=accounts&id=:id" },
+    { "source": "/api/cards", "destination": "/api/router?resource=cards" },
+    { "source": "/api/cards/:id", "destination": "/api/router?resource=cards&id=:id" },
+    { "source": "/api/income", "destination": "/api/router?resource=income" },
+    { "source": "/api/income/:id", "destination": "/api/router?resource=income&id=:id" },
+    { "source": "/api/fixed-expenses", "destination": "/api/router?resource=fixed-expenses" },
+    { "source": "/api/fixed-expenses/:id", "destination": "/api/router?resource=fixed-expenses&id=:id" },
+    { "source": "/api/installment-expenses", "destination": "/api/router?resource=installment-expenses" },
+    { "source": "/api/installment-expenses/:id", "destination": "/api/router?resource=installment-expenses&id=:id" },
+    { "source": "/api/payment-methods", "destination": "/api/router?resource=payment-methods" },
+    { "source": "/api/reports", "destination": "/api/router?resource=reports" },
+    { "source": "/api/cron", "destination": "/api/router?resource=cron" },
+    { "source": "/api/monthly-periods", "destination": "/api/router?resource=monthly-periods" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
   "crons": [
