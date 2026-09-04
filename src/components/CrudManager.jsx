@@ -48,6 +48,9 @@ export default function CrudManager({
   const [form, setForm] = useState(() => emptyForm(fields))
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [quickField, setQuickField] = useState(null)
+  const [quickForm, setQuickForm] = useState({})
+  const [creandoRapido, setCreandoRapido] = useState(false)
 
   const relatedKeys = useMemo(() => Object.keys(related), [related])
   const queryString = queryParams ? new URLSearchParams(queryParams).toString() : ''
@@ -101,6 +104,7 @@ export default function CrudManager({
   function closeForm() {
     setShowForm(false)
     setEditingId(null)
+    setQuickField(null)
   }
 
   async function handleSubmit(e) {
@@ -140,10 +144,32 @@ export default function CrudManager({
     }
   }
 
+  // Alta rápida: si a mitad de carga falta una tarjeta o una cuenta, se crea
+  // desde acá mismo y queda seleccionada, sin perder lo que venías escribiendo.
+  async function crearRapido(f) {
+    const config = f.quickCreate
+    setCreandoRapido(true)
+    setError('')
+    try {
+      const creado = await api.post(config.endpoint, quickForm)
+      const opciones = await api.get(related[f.optionsFrom])
+      setRelatedData((s) => ({ ...s, [f.optionsFrom]: opciones }))
+      const elegido = config.seleccionar ? config.seleccionar(creado, opciones) : creado.id
+      setForm((s) => ({ ...s, [f.name]: elegido ?? '' }))
+      setQuickField(null)
+      setQuickForm({})
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setCreandoRapido(false)
+    }
+  }
+
   function renderFieldInput(f) {
     if (f.type === 'select') {
       const options = f.options || relatedData[f.optionsFrom] || []
       return (
+        <>
         <select
           className="w-full border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           value={form[f.name] ?? ''}
@@ -157,6 +183,76 @@ export default function CrudManager({
             </option>
           ))}
         </select>
+
+        {f.quickCreate && quickField !== f.name && (
+          <button
+            type="button"
+            onClick={() => {
+              setQuickField(f.name)
+              setQuickForm(
+                Object.fromEntries(f.quickCreate.fields.map((qf) => [qf.name, qf.defaultValue ?? ''])),
+              )
+            }}
+            className="mt-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+          >
+            + {f.quickCreate.label}
+          </button>
+        )}
+
+        {f.quickCreate && quickField === f.name && (
+          <div className="mt-2 border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/60 dark:bg-indigo-500/10 rounded-lg p-3">
+            <div className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-2">
+              {f.quickCreate.label}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {f.quickCreate.fields.map((qf) => (
+                <div key={qf.name}>
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{qf.label}</label>
+                  {qf.type === 'select' ? (
+                    <select
+                      value={quickForm[qf.name] ?? ''}
+                      onChange={(e) => setQuickForm((s) => ({ ...s, [qf.name]: e.target.value }))}
+                      className="w-full border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-2 py-1.5 text-sm"
+                    >
+                      {qf.options.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type={qf.type || 'text'}
+                      min={qf.min}
+                      max={qf.max}
+                      value={quickForm[qf.name] ?? ''}
+                      onChange={(e) => setQuickForm((s) => ({ ...s, [qf.name]: e.target.value }))}
+                      className="w-full border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-2 py-1.5 text-sm"
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2 mt-2">
+              <button
+                type="button"
+                disabled={creandoRapido}
+                onClick={() => crearRapido(f)}
+                className="bg-indigo-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {creandoRapido ? 'Creando...' : 'Crear y seleccionar'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setQuickField(null)}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+        </>
       )
     }
 

@@ -1,15 +1,30 @@
 import { sql } from '../db.js'
 import { methodNotAllowed } from '../http.js'
 import { runMonthlyClose } from '../monthly-close.js'
+import { computeProjectedGasto, cargarCompromisos } from '../projection.js'
 
-// Las filas las genera el motor de cierre mensual (ver monthly-close.js). El
-// POST dispara ese cierre a mano desde la app: a diferencia de /api/cron (que
-// corre desde la infraestructura de Vercel y por eso exige CRON_SECRET), esta
-// ruta queda detrás de la protección del sitio. El PUT permite corregir el
-// ingreso proyectado de un mes, que varía y no siempre está declarado.
+function toDateStr(fecha) {
+  if (fecha instanceof Date) return fecha.toISOString().slice(0, 10)
+  return fecha
+}
+
+// Los meses cerrados son historia y se leen tal cual. Los proyectados se
+// recalculan en el momento: así, apenas cargás un gasto fijo o una cuota, la
+// pantalla lo refleja sin esperar a que corra el cierre diario. El ingreso
+// guardado se respeta porque puede haberlo editado el usuario a mano.
 export default async function monthlyPeriods(req, res, id) {
   if (!id && req.method === 'GET') {
     const rows = await sql`SELECT * FROM monthly_periods ORDER BY anio_mes`
+    const proyectados = rows.filter((r) => !r.cerrado)
+    if (proyectados.length === 0) return res.status(200).json(rows)
+
+    const compromisos = await cargarCompromisos()
+    for (const row of proyectados) {
+      const mes = toDateStr(row.anio_mes).slice(0, 7)
+      const { total } = await computeProjectedGasto(mes, 'pago', compromisos)
+      row.gastos_totales = total
+      row.ahorro_real = Number(row.ingresos_totales) - total
+    }
     return res.status(200).json(rows)
   }
 

@@ -25,8 +25,11 @@ export default function Layout() {
   }
 
   return (
-    <div className="min-h-screen flex bg-gray-50 dark:bg-gray-950">
-      <aside className="w-60 shrink-0 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 hidden sm:flex sm:flex-col">
+    // items-start es necesario para que el sticky del menú funcione: si el
+    // aside se estira a toda la altura, no tiene margen para pegarse.
+    <div className="min-h-screen flex items-start bg-gray-50 dark:bg-gray-950">
+      {/* sticky + h-screen: el menú acompaña el scroll y queda siempre a mano */}
+      <aside className="w-60 shrink-0 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 hidden sm:flex sm:flex-col sticky top-0 h-screen overflow-y-auto">
         <div className="flex items-center justify-between mb-6 px-2">
           <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">Finanzas Personales</div>
           <button

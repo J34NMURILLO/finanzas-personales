@@ -64,9 +64,9 @@ export function fechaPagoCuotaActual(fechaInicio, cuotaActual, cierreDia, vencim
   return getFechaVencimiento(anio, mes, vencimientoDia ?? cierreDia, cierreDia)
 }
 
-// Gastos comprometidos de `mes`: gastos fijos activos + cuotas pendientes.
-// No incluye las transacciones sueltas ya cargadas (se suman en reports.js).
-export async function computeProjectedGasto(mes, criterio = 'pago') {
+// Trae gastos fijos y cuotas una sola vez, para poder proyectar muchos meses
+// sin repetir la consulta por cada uno.
+export async function cargarCompromisos() {
   const [fixedExpenses, installments] = await Promise.all([
     sql`
       SELECT fe.id, fe.nombre, fe.monto, fe.dia_del_mes, fe.activo_desde, fe.activo_hasta,
@@ -88,6 +88,13 @@ export async function computeProjectedGasto(mes, criterio = 'pago') {
       LEFT JOIN cards c ON c.id = ie.tarjeta_id
     `,
   ])
+  return { fixedExpenses, installments }
+}
+
+// Gastos comprometidos de `mes`: gastos fijos activos + cuotas pendientes.
+// No incluye las transacciones sueltas ya cargadas (se suman en reports.js).
+export async function computeProjectedGasto(mes, criterio = 'pago', compromisos = null) {
+  const { fixedExpenses, installments } = compromisos || (await cargarCompromisos())
 
   const detalle = []
   let total = 0

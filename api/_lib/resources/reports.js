@@ -1,7 +1,7 @@
 import { sql } from '../db.js'
 import { methodNotAllowed } from '../http.js'
 import { mesEfectivo, mesDePago, addMonths } from '../billing-cycle.js'
-import { computeProjectedGasto } from '../projection.js'
+import { computeProjectedGasto, cargarCompromisos } from '../projection.js'
 
 const COLOR_FALLBACK = '#9ca3af'
 
@@ -123,8 +123,9 @@ export default async function reports(req, res) {
   }
 
   // 2. Gastos fijos y cuotas que caen en cada mes del rango.
+  const compromisos = await cargarCompromisos()
   for (const mes of meses) {
-    const { detalle: comprometidos } = await computeProjectedGasto(mes, 'devengado')
+    const { detalle: comprometidos } = await computeProjectedGasto(mes, 'devengado', compromisos)
     for (const item of comprometidos) {
       sumar({ ...item, id: `${item.tipo}-${item.id}-${mes}`, mes })
     }
@@ -150,7 +151,7 @@ export default async function reports(req, res) {
   const gastosSiguienteSueltos = transactions
     .filter((t) => mesDePago(t.fecha, t.cierre_dia, t.vencimiento_dia) === mesSiguiente)
     .reduce((acc, t) => acc + Number(t.monto), 0)
-  const { total: gastosSiguienteComprometidos } = await computeProjectedGasto(mesSiguiente, 'pago')
+  const { total: gastosSiguienteComprometidos } = await computeProjectedGasto(mesSiguiente, 'pago', compromisos)
   const ingresosSiguiente = incomeRows
     .filter((r) => {
       const mes = r.fecha instanceof Date ? r.fecha.toISOString().slice(0, 7) : String(r.fecha).slice(0, 7)

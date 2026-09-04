@@ -26,6 +26,15 @@ export default function InstallmentExpenses() {
           type: 'select',
           optionsFrom: 'cards',
           placeholder: 'Ninguna — se debita de una cuenta',
+          quickCreate: {
+            label: 'Agregar una tarjeta que falta',
+            endpoint: '/cards',
+            fields: [
+              { name: 'nombre', label: 'Nombre de la tarjeta' },
+              { name: 'cierre_dia', label: 'Día de cierre', type: 'number', min: 1, max: 31 },
+              { name: 'vencimiento_dia', label: 'Día de vencimiento', type: 'number', min: 1, max: 31 },
+            ],
+          },
         },
         { name: 'categoria_id', label: 'Categoría', type: 'select', optionsFrom: 'categories' },
       ]}

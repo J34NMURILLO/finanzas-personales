@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { api } from '../lib/api'
@@ -59,21 +59,33 @@ export default function Dashboard() {
     setTarjetaId('')
   }
 
-  const ahorroPositivo = (report?.totales.ahorro ?? 0) >= 0
+  // Lo que gastás este mes se termina de pagar con el sueldo del mes que
+  // viene, así que el remanente se calcula contra ese ingreso, no contra el
+  // del mes en curso.
+  const remanente = report ? report.mesSiguiente.ingresos - report.totales.gastos : 0
+  const alcanza = remanente >= 0
+
   const ahorroChartData = useMemo(() => {
     if (!report) return []
-    const { gastos, ahorro, ingresos } = report.totales
-    if (ahorro >= 0) {
+    const ingresoProximo = report.mesSiguiente.ingresos
+    const gastos = report.totales.gastos
+    if (ingresoProximo - gastos >= 0) {
       return [
-        { name: 'Gastos', value: gastos, color: GASTO_COLOR },
-        { name: 'Te queda', value: ahorro, color: AHORRO_COLOR },
+        { name: 'Gastos del mes', value: gastos, color: GASTO_COLOR },
+        { name: 'Te queda', value: ingresoProximo - gastos, color: AHORRO_COLOR },
       ]
     }
     return [
-      { name: 'Ingresos', value: ingresos, color: AHORRO_COLOR },
-      { name: 'Te falta', value: -ahorro, color: DEFICIT_COLOR },
+      { name: 'Sueldo', value: ingresoProximo, color: AHORRO_COLOR },
+      { name: 'Te falta', value: gastos - ingresoProximo, color: DEFICIT_COLOR },
     ]
   }, [report])
+
+  const GRUPOS = [
+    { tipo: 'fijo', label: 'Gastos fijos', color: '#6366f1' },
+    { tipo: 'cuota', label: 'Compras en cuotas', color: '#f59e0b' },
+    { tipo: 'transaccion', label: 'Gastos variables', color: '#06b6d4' },
+  ]
 
   return (
     <div>
@@ -138,9 +150,11 @@ export default function Dashboard() {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 shadow-sm">
-              <div className="text-xs text-gray-500 dark:text-gray-400">Ingresos del período</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                Sueldo con el que lo pagás ({report.mesSiguiente.mes})
+              </div>
               <div className="text-2xl font-semibold text-green-600 dark:text-green-400">
-                {formatMoney(report.totales.ingresos)}
+                {formatMoney(report.mesSiguiente.ingresos)}
               </div>
             </div>
             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 shadow-sm">
@@ -151,12 +165,12 @@ export default function Dashboard() {
             </div>
             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 shadow-sm">
               <div className="text-xs text-gray-500 dark:text-gray-400">
-                {ahorroPositivo ? 'Te queda' : 'Te falta'}
+                {alcanza ? 'Te queda para ahorrar' : 'Te falta'}
               </div>
               <div
-                className={`text-2xl font-semibold ${ahorroPositivo ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'}`}
+                className={`text-2xl font-semibold ${alcanza ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'}`}
               >
-                {formatMoney(Math.abs(report.totales.ahorro))}
+                {formatMoney(Math.abs(remanente))}
               </div>
             </div>
           </div>
@@ -214,9 +228,12 @@ export default function Dashboard() {
             </div>
 
             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 shadow-sm">
-              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                {ahorroPositivo ? 'Gasto vs. lo que te queda' : 'Ingreso vs. lo que te falta'}
+              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                {alcanza ? 'Qué te queda para ahorrar' : 'Cuánto te falta'}
               </h2>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">
+                Sueldo de {report.mesSiguiente.mes} menos todo lo que gastaste este mes.
+              </p>
               {tarjetaId ? (
                 <p className="text-sm text-gray-400 dark:text-gray-500 py-10 text-center">
                   Filtrando por una tarjeta puntual no se calcula el remanente del sueldo.
@@ -261,20 +278,52 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {report.detalle.map((d) => (
-                      <tr key={d.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{d.nombre}</td>
-                        <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs">
-                          {ETIQUETA_TIPO[d.tipo] || d.tipo}
-                        </td>
-                        <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{d.categoria_nombre || '—'}</td>
-                        <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{d.medio_nombre || '—'}</td>
-                        <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{d.mes_de_pago || d.mes}</td>
-                        <td className="px-4 py-3 text-right font-medium text-gray-800 dark:text-gray-200">
-                          {formatMoney(d.monto)}
-                        </td>
-                      </tr>
-                    ))}
+                    {GRUPOS.map((grupo) => {
+                      const items = report.detalle.filter((d) => d.tipo === grupo.tipo)
+                      if (items.length === 0) return null
+                      const subtotal = items.reduce((acc, d) => acc + d.monto, 0)
+                      return (
+                        <Fragment key={grupo.tipo}>
+                          <tr className="bg-gray-50/70 dark:bg-gray-800/40">
+                            <td colSpan={4} className="px-4 py-2">
+                              <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                                <span
+                                  className="w-2.5 h-2.5 rounded-full inline-block"
+                                  style={{ background: grupo.color }}
+                                />
+                                {grupo.label}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2 text-xs text-gray-400 dark:text-gray-500">
+                              {items.length} {items.length === 1 ? 'ítem' : 'ítems'}
+                            </td>
+                            <td className="px-4 py-2 text-right text-xs font-semibold text-gray-700 dark:text-gray-200">
+                              {formatMoney(subtotal)}
+                            </td>
+                          </tr>
+                          {items.map((d) => (
+                            <tr key={d.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                              <td className="px-4 py-3 text-gray-700 dark:text-gray-300 pl-8">
+                                <span
+                                  className="w-1.5 h-1.5 rounded-full inline-block mr-2 align-middle"
+                                  style={{ background: grupo.color }}
+                                />
+                                {d.nombre}
+                              </td>
+                              <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs">
+                                {ETIQUETA_TIPO[d.tipo] || d.tipo}
+                              </td>
+                              <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{d.categoria_nombre || '—'}</td>
+                              <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{d.medio_nombre || '—'}</td>
+                              <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{d.mes_de_pago || d.mes}</td>
+                              <td className="px-4 py-3 text-right font-medium text-gray-800 dark:text-gray-200">
+                                {formatMoney(d.monto)}
+                              </td>
+                            </tr>
+                          ))}
+                        </Fragment>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
