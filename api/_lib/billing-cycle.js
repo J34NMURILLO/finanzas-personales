@@ -43,6 +43,24 @@ export function mesEfectivo(fecha, cierreDia) {
   return `${anio}-${String(mes).padStart(2, '0')}`
 }
 
+// Cuántos meses después del cierre cae el vencimiento. Si el día de
+// vencimiento es menor o igual al de cierre, el pago cae el mes siguiente
+// (ej: cierra el 28, vence el 10 => se paga el 10 del mes que viene).
+export function offsetVencimiento(cierreDia, vencimientoDia) {
+  return vencimientoDia <= cierreDia ? 1 : 0
+}
+
+// Mes ('YYYY-MM') en el que la plata sale efectivamente del bolsillo.
+// Para tarjeta es el mes de vencimiento del resumen donde cayó la compra;
+// para cuenta/efectivo es el mismo mes calendario del movimiento.
+// Ej: compra el 02/09 con cierre 28 y vencimiento 10 => se paga en 2026-10.
+export function mesDePago(fecha, cierreDia, vencimientoDia) {
+  if (cierreDia == null) return toDateStr(fecha).slice(0, 7)
+  const ciclo = getCicloTarjeta(fecha, cierreDia)
+  const cicloMes = `${ciclo.anio}-${String(ciclo.mes).padStart(2, '0')}`
+  return addMonths(cicloMes, offsetVencimiento(cierreDia, vencimientoDia ?? cierreDia))
+}
+
 // Suma/resta meses a un string 'YYYY-MM'.
 export function addMonths(yyyyMm, delta) {
   const [y, m] = yyyyMm.split('-').map(Number)

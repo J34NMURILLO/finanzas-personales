@@ -1,6 +1,6 @@
 import { sql } from './db.js'
-import { mesEfectivo, addMonths } from './billing-cycle.js'
-import { computeProjectedGasto, cuotaParaMes } from './projection.js'
+import { mesDePago, addMonths } from './billing-cycle.js'
+import { computeProjectedGasto, cuotaParaMesDePago } from './projection.js'
 
 const MESES_PROYECCION = 12
 const MESES_RETENCION = 24
@@ -10,24 +10,31 @@ function toDateStr(fecha) {
   return fecha
 }
 
-async function ingresosGastosReales(mes) {
-  const desde = `${mes}-01`
-  const hasta = `${addMonths(mes, 1)}-01`
-  const [incomeRows, txRows] = await Promise.all([
-    sql`SELECT monto FROM income WHERE fecha >= ${desde} AND fecha < ${hasta}`,
-    sql`
-      SELECT t.monto, t.fecha, cd.cierre_dia
-      FROM transactions t
-      LEFT JOIN payment_methods pm ON pm.id = t.payment_method_id
-      LEFT JOIN cards cd ON cd.id = pm.card_id
-      WHERE t.fecha >= ${addMonths(mes, -1) + '-01'} AND t.fecha < ${hasta}
-    `,
-  ])
-  const ingresos = incomeRows.reduce((acc, r) => acc + Number(r.monto), 0)
-  const gastos = txRows
-    .filter((t) => mesEfectivo(t.fecha, t.cierre_dia) === mes)
+// Ingreso declarado para ese mes calendario.
+async function ingresosDelMes(mes) {
+  const rows = await sql`
+    SELECT monto FROM income
+    WHERE fecha >= ${`${mes}-01`} AND fecha < ${`${addMonths(mes, 1)}-01`}
+  `
+  return rows.reduce((acc, r) => acc + Number(r.monto), 0)
+}
+
+// Gasto imputado a `mes`: transacciones sueltas que se pagan ese mes (según
+// cierre/vencimiento de la tarjeta) + gastos fijos y cuotas comprometidos.
+async function gastosDelMes(mes) {
+  const txRows = await sql`
+    SELECT t.monto, t.fecha, cd.cierre_dia, cd.vencimiento_dia
+    FROM transactions t
+    LEFT JOIN payment_methods pm ON pm.id = t.payment_method_id
+    LEFT JOIN cards cd ON cd.id = pm.card_id
+    WHERE t.fecha >= ${`${addMonths(mes, -2)}-01`} AND t.fecha < ${`${addMonths(mes, 1)}-01`}
+  `
+  const sueltos = txRows
+    .filter((t) => mesDePago(t.fecha, t.cierre_dia, t.vencimiento_dia) === mes)
     .reduce((acc, r) => acc + Number(r.monto), 0)
-  return { ingresos, gastos }
+
+  const { total: comprometidos } = await computeProjectedGasto(mes)
+  return sueltos + comprometidos
 }
 
 async function upsertPeriodo(mes, { ingresos, gastos, cerrado }) {
@@ -51,17 +58,24 @@ async function upsertPeriodo(mes, { ingresos, gastos, cerrado }) {
   }
 }
 
-// Avanza cuota_actual de las compras en cuotas cuya cuota vigente
-// corresponde justo al mes que se está cerrando.
+// Avanza cuota_actual de las compras en cuotas cuya cuota vigente se pagaba
+// justo en el mes que se está cerrando.
 async function avanzarCuotas(mes) {
   const installments = await sql`
-    SELECT ie.id, ie.cuota_actual, ie.cuotas_totales, ie.fecha_inicio, c.cierre_dia
+    SELECT ie.id, ie.cuota_actual, ie.cuotas_totales, ie.fecha_inicio, c.cierre_dia, c.vencimiento_dia
     FROM installment_expenses ie
     LEFT JOIN cards c ON c.id = ie.tarjeta_id
     WHERE ie.cuota_actual <= ie.cuotas_totales
   `
   for (const ie of installments) {
-    const k = cuotaParaMes(mes, ie.fecha_inicio, ie.cierre_dia)
+    const k = cuotaParaMesDePago(
+      mes,
+      ie.fecha_inicio,
+      ie.cierre_dia,
+      ie.vencimiento_dia,
+      ie.cuotas_totales,
+      ie.cuota_actual,
+    )
     if (k === ie.cuota_actual) {
       await sql`UPDATE installment_expenses SET cuota_actual = ${ie.cuota_actual + 1} WHERE id = ${ie.id}`
     }
@@ -80,12 +94,12 @@ async function chequearRetencion(mes) {
     cantidad,
     cutoff,
     purgado: false,
-    motivo: 'Faltan configurar BLOB_READ_WRITE_TOKEN (Vercel Blob) para exportar a CSV antes de purgar.',
+    motivo: 'Falta configurar BLOB_READ_WRITE_TOKEN (Vercel Blob) para exportar a CSV antes de purgar.',
   }
 }
 
 async function cerrarMes(mes) {
-  const { ingresos, gastos } = await ingresosGastosReales(mes)
+  const [ingresos, gastos] = await Promise.all([ingresosDelMes(mes), gastosDelMes(mes)])
   await upsertPeriodo(mes, { ingresos, gastos, cerrado: true })
   await avanzarCuotas(mes)
   const retencion = await chequearRetencion(mes)
@@ -93,25 +107,32 @@ async function cerrarMes(mes) {
 }
 
 // Refresca la ventana proyectada completa (los MESES_PROYECCION meses
-// siguientes al último mes cerrado) a partir del estado actual de gastos
-// fijos y cuotas. Se corre siempre, no solo cuando hay un mes nuevo para
-// cerrar, para que un alta/baja de un gasto fijo se refleje sin esperar
-// al próximo cierre real.
+// siguientes al último mes cerrado). Se corre siempre, no solo cuando hay un
+// mes nuevo para cerrar, para que un alta/baja de un gasto fijo o un ingreso
+// declarado se refleje sin esperar al próximo cierre real.
 async function refrescarProyeccion() {
   const [ultimoCerrado] = await sql`
     SELECT anio_mes, ingresos_totales FROM monthly_periods WHERE cerrado = true ORDER BY anio_mes DESC LIMIT 1
   `
-  if (!ultimoCerrado) return []
+  const baseMes = ultimoCerrado
+    ? toDateStr(ultimoCerrado.anio_mes).slice(0, 7)
+    : addMonths(new Date().toISOString().slice(0, 7), -1)
 
-  const baseMes = toDateStr(ultimoCerrado.anio_mes).slice(0, 7)
-  const ingresosBase = Number(ultimoCerrado.ingresos_totales)
+  // Si un mes futuro no tiene ingreso declarado, se asume que se repite el
+  // último ingreso conocido (normalmente el sueldo).
+  let ultimoIngresoConocido = ultimoCerrado ? Number(ultimoCerrado.ingresos_totales) : 0
 
   const proyectados = []
   for (let i = 1; i <= MESES_PROYECCION; i++) {
     const mes = addMonths(baseMes, i)
-    const { total: gastos } = await computeProjectedGasto(mes)
-    await upsertPeriodo(mes, { ingresos: ingresosBase, gastos, cerrado: false })
-    proyectados.push({ mes, ingresos: ingresosBase, gastos })
+    const [declarado, gastos] = await Promise.all([ingresosDelMes(mes), gastosDelMes(mes)])
+
+    const estimado = declarado > 0
+    const ingresos = estimado ? declarado : ultimoIngresoConocido
+    if (estimado) ultimoIngresoConocido = declarado
+
+    await upsertPeriodo(mes, { ingresos, gastos, cerrado: false })
+    proyectados.push({ mes, ingresos, gastos, ingresoDeclarado: estimado })
   }
   return proyectados
 }

@@ -1,10 +1,31 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
 
+export const PALETA = [
+  { nombre: 'Rojo', hex: '#ef4444' },
+  { nombre: 'Naranja', hex: '#f97316' },
+  { nombre: 'Ámbar', hex: '#f59e0b' },
+  { nombre: 'Amarillo', hex: '#eab308' },
+  { nombre: 'Lima', hex: '#84cc16' },
+  { nombre: 'Verde', hex: '#22c55e' },
+  { nombre: 'Esmeralda', hex: '#10b981' },
+  { nombre: 'Turquesa', hex: '#06b6d4' },
+  { nombre: 'Celeste', hex: '#0ea5e9' },
+  { nombre: 'Azul', hex: '#3b82f6' },
+  { nombre: 'Índigo', hex: '#6366f1' },
+  { nombre: 'Violeta', hex: '#8b5cf6' },
+  { nombre: 'Fucsia', hex: '#d946ef' },
+  { nombre: 'Rosa', hex: '#ec4899' },
+  { nombre: 'Marrón', hex: '#a16207' },
+  { nombre: 'Gris', hex: '#6b7280' },
+]
+
 function emptyForm(fields) {
   const form = {}
   for (const f of fields) {
-    form[f.name] = f.type === 'checkbox' ? true : ''
+    if (f.type === 'checkbox') form[f.name] = true
+    else if (f.type === 'color') form[f.name] = PALETA[0].hex
+    else form[f.name] = f.defaultValue ?? ''
   }
   return form
 }
@@ -55,7 +76,12 @@ export default function CrudManager({ title, endpoint, fields, columns, related 
     setEditingId(row.id)
     const next = {}
     for (const f of fields) {
-      next[f.name] = row[f.name] ?? (f.type === 'checkbox' ? true : '')
+      const valor = f.fromRow ? f.fromRow(row) : row[f.name]
+      next[f.name] = valor ?? (f.type === 'checkbox' ? true : '')
+      // Los campos date del navegador necesitan 'YYYY-MM-DD' pelado.
+      if (f.type === 'date' && typeof next[f.name] === 'string') {
+        next[f.name] = next[f.name].slice(0, 10)
+      }
     }
     setForm(next)
     setShowForm(true)
@@ -131,6 +157,28 @@ export default function CrudManager({ title, endpoint, fields, columns, related 
           checked={!!form[f.name]}
           onChange={(e) => setForm((s) => ({ ...s, [f.name]: e.target.checked }))}
         />
+      )
+    }
+
+    if (f.type === 'color') {
+      const seleccionado = form[f.name]
+      return (
+        <div className="flex flex-wrap gap-2">
+          {PALETA.map((c) => (
+            <button
+              key={c.hex}
+              type="button"
+              title={c.nombre}
+              onClick={() => setForm((s) => ({ ...s, [f.name]: c.hex }))}
+              className={`w-7 h-7 rounded-full border-2 transition ${
+                seleccionado === c.hex
+                  ? 'border-gray-900 dark:border-white scale-110'
+                  : 'border-transparent hover:scale-105'
+              }`}
+              style={{ background: c.hex }}
+            />
+          ))}
+        </div>
       )
     }
 

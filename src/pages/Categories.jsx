@@ -17,7 +17,7 @@ export default function Categories() {
             { value: 'ingreso', label: 'Ingreso' },
           ],
         },
-        { name: 'color', label: 'Color (hex)', type: 'text' },
+        { name: 'color', label: 'Color', type: 'color' },
       ]}
       columns={[
         { key: 'nombre', label: 'Nombre' },
@@ -37,15 +37,18 @@ export default function Categories() {
         {
           key: 'color',
           label: 'Color',
-          render: (r) =>
-            r.color ? (
-              <span className="inline-flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full inline-block border border-gray-200" style={{ background: r.color }} />
-                {r.color}
-              </span>
-            ) : (
-              '—'
-            ),
+          render: (r) => {
+            const valido = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test((r.color || '').trim())
+            if (!valido) {
+              return <span className="text-xs text-orange-500">Sin color — editá para elegir uno</span>
+            }
+            return (
+              <span
+                className="w-5 h-5 rounded-full inline-block border border-gray-200 dark:border-gray-700"
+                style={{ background: r.color }}
+              />
+            )
+          },
         },
       ]}
     />
