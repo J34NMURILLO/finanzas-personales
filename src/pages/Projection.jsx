@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { api } from '../lib/api'
 
@@ -18,6 +18,8 @@ export default function Projection() {
   const [running, setRunning] = useState(false)
   const [runResult, setRunResult] = useState(null)
   const [editando, setEditando] = useState(null)
+  const [valorEditado, setValorEditado] = useState('')
+  const guardandoRef = useRef(false)
 
   function load() {
     setLoading(true)
@@ -48,20 +50,31 @@ export default function Projection() {
     }
   }
 
+  function abrirEdicion(periodo) {
+    setValorEditado(String(Number(periodo.ingresos_totales)))
+    setEditando(periodo.id)
+  }
+
+  // Enter y salir del campo pueden dispararse los dos seguidos; el flag evita
+  // que se guarde dos veces.
   async function guardarIngreso(periodo, valor) {
-    const monto = Number(valor)
-    if (Number.isNaN(monto) || monto === Number(periodo.ingresos_totales)) {
-      setEditando(null)
-      return
-    }
-    setError('')
+    if (guardandoRef.current) return
+    guardandoRef.current = true
     try {
+      const monto = Number(valor)
+      if (valor === '' || Number.isNaN(monto) || monto === Number(periodo.ingresos_totales)) {
+        setEditando(null)
+        return
+      }
+      setError('')
       await api.put(`/monthly-periods/${periodo.id}`, { ingresos_totales: monto })
+      setEditando(null)
       await load()
     } catch (err) {
       setError(err.message)
-    } finally {
       setEditando(null)
+    } finally {
+      guardandoRef.current = false
     }
   }
 
@@ -150,10 +163,15 @@ export default function Projection() {
                         <input
                           type="number"
                           autoFocus
-                          defaultValue={Number(p.ingresos_totales)}
-                          onBlur={(e) => guardarIngreso(p, e.target.value)}
+                          value={valorEditado}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => setValorEditado(e.target.value)}
+                          onBlur={() => guardarIngreso(p, valorEditado)}
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter') e.currentTarget.blur()
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              guardarIngreso(p, valorEditado)
+                            }
                             if (e.key === 'Escape') setEditando(null)
                           }}
                           className="w-36 border border-indigo-400 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-2 py-1 text-sm"
@@ -162,7 +180,7 @@ export default function Projection() {
                         formatMoney(p.ingresos_totales)
                       ) : (
                         <button
-                          onClick={() => setEditando(p.id)}
+                          onClick={() => abrirEdicion(p)}
                           title="Click para editar el sueldo de este mes"
                           className="underline decoration-dotted underline-offset-4 hover:text-indigo-600 dark:hover:text-indigo-400"
                         >
