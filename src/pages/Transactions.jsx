@@ -12,7 +12,7 @@ export default function Transactions() {
     <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 shadow-sm flex flex-wrap items-end gap-3">
       <div>
         <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-          Mes en que se paga
+          Mes del gasto
         </label>
         <input
           type="month"
@@ -33,7 +33,7 @@ export default function Transactions() {
   return (
     <CrudManager
       title="Gastos sueltos"
-      descripcion="Los gastos que no son fijos ni en cuotas. Se cargan acá o por chat, y el historial se filtra por el mes en que se pagan (una compra con tarjeta aparece en el mes en que vence el resumen)."
+      descripcion="Los gastos que no son fijos ni en cuotas. Se cargan acá o por chat. El historial se filtra por el mes del gasto (el resumen de tarjeta al que entra la compra); la fecha de pago la calcula sola según el cierre y vencimiento de la tarjeta."
       toolbar={toolbar}
       endpoint="/transactions"
       queryParams={{ mes }}
@@ -51,6 +51,7 @@ export default function Transactions() {
         { key: 'monto', label: 'Monto', render: (r) => `$${Number(r.monto).toLocaleString('es-AR')}` },
         { key: 'categoria_nombre', label: 'Categoría', render: (r) => r.categoria_nombre || '—' },
         { key: 'medio_nombre', label: 'Medio', render: (r) => r.medio_nombre || '—' },
+        { key: 'mes_del_gasto', label: 'Mes del gasto' },
         { key: 'mes_de_pago', label: 'Se paga en' },
         {
           key: 'origen',

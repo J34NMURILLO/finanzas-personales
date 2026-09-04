@@ -1,6 +1,6 @@
 import { sql } from './db.js'
 import { mesDePago, addMonths } from './billing-cycle.js'
-import { computeProjectedGasto, cuotaParaMesDePago } from './projection.js'
+import { computeProjectedGasto, cuotaParaMes } from './projection.js'
 
 const MESES_PROYECCION = 12
 const MESES_RETENCION = 24
@@ -68,13 +68,14 @@ async function avanzarCuotas(mes) {
     WHERE ie.cuota_actual <= ie.cuotas_totales
   `
   for (const ie of installments) {
-    const k = cuotaParaMesDePago(
+    const k = cuotaParaMes(
       mes,
       ie.fecha_inicio,
       ie.cierre_dia,
       ie.vencimiento_dia,
       ie.cuotas_totales,
       ie.cuota_actual,
+      'pago',
     )
     if (k === ie.cuota_actual) {
       await sql`UPDATE installment_expenses SET cuota_actual = ${ie.cuota_actual + 1} WHERE id = ${ie.id}`

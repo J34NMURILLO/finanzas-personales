@@ -1,35 +1,43 @@
 import { sql } from './db.js'
-import { getCicloTarjeta, addMonths, monthsBetween, offsetVencimiento } from './billing-cycle.js'
+import { getCicloTarjeta, getFechaVencimiento, addMonths, monthsBetween, offsetVencimiento } from './billing-cycle.js'
 
 function toDateStr(fecha) {
   if (fecha instanceof Date) return fecha.toISOString().slice(0, 10)
   return fecha
 }
 
-// Todo se imputa al mes en que la plata sale del bolsillo (mes de pago).
-// Para un gasto con tarjeta eso son dos corrimientos posibles respecto del
-// mes calendario en que ocurre: uno si el día cae después del cierre, y otro
-// si el vencimiento del resumen cae el mes siguiente al cierre.
-function offsetPagoGastoFijo(diaDelMes, cierreDia, vencimientoDia) {
-  if (cierreDia == null) return 0
-  const cruzaCierre = diaDelMes > cierreDia ? 1 : 0
-  return cruzaCierre + offsetVencimiento(cierreDia, vencimientoDia ?? cierreDia)
+// Hay dos preguntas distintas y cada pantalla usa la que le sirve:
+//   'devengado' -> ¿en qué mes se hizo el gasto? (a qué resumen de la tarjeta
+//                  entra). Es lo que muestra el Resumen del mes.
+//   'pago'      -> ¿en qué mes sale la plata? (vencimiento de ese resumen).
+//                  Es lo que consume el sueldo y usa la Proyección.
+// La diferencia entre las dos es un mes cuando el vencimiento cae después del
+// cierre; para efectivo y cuentas son la misma cosa.
+function offsetCriterio(criterio, cierreDia, vencimientoDia) {
+  if (cierreDia == null || criterio !== 'pago') return 0
+  return offsetVencimiento(cierreDia, vencimientoDia ?? cierreDia)
 }
 
-// Número de cuota (1-indexado) que se paga en `mes`, o null si en ese mes no
-// cae ninguna cuota de esta compra.
-export function cuotaParaMesDePago(mes, fechaInicio, cierreDia, vencimientoDia, cuotasTotales, cuotaActual) {
+function cicloDeCompra(fechaInicio, cierreDia) {
   const inicioStr = toDateStr(fechaInicio)
+  if (cierreDia == null) return inicioStr.slice(0, 7)
+  const { anio, mes } = getCicloTarjeta(inicioStr, cierreDia)
+  return `${anio}-${String(mes).padStart(2, '0')}`
+}
 
-  let cicloInicio = inicioStr.slice(0, 7)
-  let vOffset = 0
-  if (cierreDia != null) {
-    const { anio, mes: mesCiclo } = getCicloTarjeta(inicioStr, cierreDia)
-    cicloInicio = `${anio}-${String(mesCiclo).padStart(2, '0')}`
-    vOffset = offsetVencimiento(cierreDia, vencimientoDia ?? cierreDia)
-  }
-
-  const cicloDelMes = addMonths(mes, -vOffset)
+// Número de cuota (1-indexado) que corresponde a `mes` según el criterio, o
+// null si en ese mes no cae ninguna cuota pendiente de esta compra.
+export function cuotaParaMes(
+  mes,
+  fechaInicio,
+  cierreDia,
+  vencimientoDia,
+  cuotasTotales,
+  cuotaActual,
+  criterio = 'pago',
+) {
+  const cicloInicio = cicloDeCompra(fechaInicio, cierreDia)
+  const cicloDelMes = addMonths(mes, -offsetCriterio(criterio, cierreDia, vencimientoDia))
   const k = monthsBetween(cicloInicio, cicloDelMes) + 1
 
   if (k < 1 || k > cuotasTotales) return null
@@ -37,34 +45,28 @@ export function cuotaParaMesDePago(mes, fechaInicio, cierreDia, vencimientoDia, 
   return k
 }
 
-// El usuario piensa en "cuándo pago la próxima cuota", no en "cuándo compré".
-// Estas dos funciones traducen entre esa fecha de pago y el fecha_inicio que
-// guarda la base, teniendo en cuenta el ciclo de la tarjeta.
-export function fechaInicioDesdeProximaCuota(proximaCuota, cuotaActual, cierreDia, vencimientoDia) {
-  const mesPago = toDateStr(proximaCuota).slice(0, 7)
-  const vOffset = cierreDia == null ? 0 : offsetVencimiento(cierreDia, vencimientoDia ?? cierreDia)
-  const cicloInicio = addMonths(addMonths(mesPago, -vOffset), -((cuotaActual || 1) - 1))
+// El usuario carga "en qué mes cae la cuota actual"; la base guarda la fecha
+// de la compra original. El día no se pregunta: lo define la tarjeta.
+export function fechaInicioDesdeMesCuotaActual(mesCuotaActual, cuotaActual) {
+  const cicloInicio = addMonths(mesCuotaActual.slice(0, 7), -((cuotaActual || 1) - 1))
   return `${cicloInicio}-01`
 }
 
-export function proximaCuotaDesdeFechaInicio(fechaInicio, cuotaActual, cierreDia, vencimientoDia) {
-  const inicioStr = toDateStr(fechaInicio)
-  let cicloInicio = inicioStr.slice(0, 7)
-  let vOffset = 0
-  if (cierreDia != null) {
-    const { anio, mes } = getCicloTarjeta(inicioStr, cierreDia)
-    cicloInicio = `${anio}-${String(mes).padStart(2, '0')}`
-    vOffset = offsetVencimiento(cierreDia, vencimientoDia ?? cierreDia)
-  }
-  const mesPago = addMonths(addMonths(cicloInicio, (cuotaActual || 1) - 1), vOffset)
-  const dia = vencimientoDia ?? Number(inicioStr.slice(8, 10))
-  return `${mesPago}-${String(Math.min(dia || 1, 28)).padStart(2, '0')}`
+export function mesCuotaActualDesdeFechaInicio(fechaInicio, cuotaActual, cierreDia) {
+  return addMonths(cicloDeCompra(fechaInicio, cierreDia), (cuotaActual || 1) - 1)
 }
 
-// Gastos comprometidos de `mes` ('YYYY-MM'): gastos fijos activos + cuotas
-// pendientes que se pagan ese mes. No incluye las transacciones sueltas ya
-// cargadas (esas se suman aparte, en reports.js).
-export async function computeProjectedGasto(mes) {
+// Fecha concreta en que se paga la cuota vigente, heredada de la tarjeta.
+export function fechaPagoCuotaActual(fechaInicio, cuotaActual, cierreDia, vencimientoDia) {
+  const cicloCuota = mesCuotaActualDesdeFechaInicio(fechaInicio, cuotaActual, cierreDia)
+  const [anio, mes] = cicloCuota.split('-').map(Number)
+  if (cierreDia == null) return `${cicloCuota}-01`
+  return getFechaVencimiento(anio, mes, vencimientoDia ?? cierreDia, cierreDia)
+}
+
+// Gastos comprometidos de `mes`: gastos fijos activos + cuotas pendientes.
+// No incluye las transacciones sueltas ya cargadas (se suman en reports.js).
+export async function computeProjectedGasto(mes, criterio = 'pago') {
   const [fixedExpenses, installments] = await Promise.all([
     sql`
       SELECT fe.id, fe.nombre, fe.monto, fe.dia_del_mes, fe.activo_desde, fe.activo_hasta,
@@ -91,8 +93,13 @@ export async function computeProjectedGasto(mes) {
   let total = 0
 
   for (const fe of fixedExpenses) {
-    const offset = offsetPagoGastoFijo(fe.dia_del_mes, fe.cierre_dia, fe.vencimiento_dia)
+    // Un gasto fijo con tarjeta que cae después del cierre entra al resumen
+    // del mes siguiente; si además el vencimiento corre un mes, se paga un
+    // mes más tarde todavía.
+    const cruzaCierre = fe.cierre_dia != null && fe.dia_del_mes > fe.cierre_dia ? 1 : 0
+    const offset = cruzaCierre + offsetCriterio(criterio, fe.cierre_dia, fe.vencimiento_dia)
     const mesCalendario = addMonths(mes, -offset)
+
     const activoDesde = toDateStr(fe.activo_desde).slice(0, 7)
     const activoHasta = fe.activo_hasta ? toDateStr(fe.activo_hasta).slice(0, 7) : null
     if (mesCalendario < activoDesde) continue
@@ -114,13 +121,14 @@ export async function computeProjectedGasto(mes) {
   }
 
   for (const ie of installments) {
-    const k = cuotaParaMesDePago(
+    const k = cuotaParaMes(
       mes,
       ie.fecha_inicio,
       ie.cierre_dia,
       ie.vencimiento_dia,
       ie.cuotas_totales,
       ie.cuota_actual,
+      criterio,
     )
     if (k == null) continue
 

@@ -1,6 +1,6 @@
 import { sql } from '../db.js'
 import { methodNotAllowed } from '../http.js'
-import { mesDePago, addMonths } from '../billing-cycle.js'
+import { mesEfectivo, mesDePago, addMonths } from '../billing-cycle.js'
 import { computeProjectedGasto } from '../projection.js'
 
 const COLOR_FALLBACK = '#9ca3af'
@@ -102,9 +102,10 @@ export default async function reports(req, res) {
     medioTotales.set(medioKey, medio)
   }
 
-  // 1. Transacciones sueltas (chat / manuales), imputadas al mes de pago.
+  // 1. Transacciones sueltas (chat / manuales). Se listan en el mes en que se
+  // hizo el gasto (el resumen de tarjeta al que entra), no en el que se paga.
   for (const t of transactions) {
-    const mes = mesDePago(t.fecha, t.cierre_dia, t.vencimiento_dia)
+    const mes = mesEfectivo(t.fecha, t.cierre_dia)
     if (!mesesSet.has(mes)) continue
     sumar({
       tipo: 'transaccion',
@@ -112,6 +113,7 @@ export default async function reports(req, res) {
       nombre: t.descripcion || t.categoria_nombre || 'Gasto',
       monto: Number(t.monto),
       mes,
+      mes_de_pago: mesDePago(t.fecha, t.cierre_dia, t.vencimiento_dia),
       categoria_id: t.categoria_id,
       categoria_nombre: t.categoria_nombre,
       categoria_color: t.categoria_color,
@@ -120,9 +122,9 @@ export default async function reports(req, res) {
     })
   }
 
-  // 2. Gastos fijos y cuotas comprometidas de cada mes del rango.
+  // 2. Gastos fijos y cuotas que caen en cada mes del rango.
   for (const mes of meses) {
-    const { detalle: comprometidos } = await computeProjectedGasto(mes)
+    const { detalle: comprometidos } = await computeProjectedGasto(mes, 'devengado')
     for (const item of comprometidos) {
       sumar({ ...item, id: `${item.tipo}-${item.id}-${mes}`, mes })
     }
@@ -143,12 +145,12 @@ export default async function reports(req, res) {
     .filter((r) => mesesSet.has(r.mes))
 
   // Resumen del mes siguiente: cuánto va a quedar de ese sueldo una vez
-  // pagado todo lo que ya está comprometido (incluido lo que se compró
-  // ahora con tarjeta y recién se paga el mes que viene).
+  // pagado todo lo que vence ahí (incluido lo que se compró este mes con
+  // tarjeta y recién se paga el mes que viene). Acá sí manda el mes de pago.
   const gastosSiguienteSueltos = transactions
     .filter((t) => mesDePago(t.fecha, t.cierre_dia, t.vencimiento_dia) === mesSiguiente)
     .reduce((acc, t) => acc + Number(t.monto), 0)
-  const { total: gastosSiguienteComprometidos } = await computeProjectedGasto(mesSiguiente)
+  const { total: gastosSiguienteComprometidos } = await computeProjectedGasto(mesSiguiente, 'pago')
   const ingresosSiguiente = incomeRows
     .filter((r) => {
       const mes = r.fecha instanceof Date ? r.fecha.toISOString().slice(0, 7) : String(r.fecha).slice(0, 7)

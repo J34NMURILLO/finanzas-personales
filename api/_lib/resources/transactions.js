@@ -1,6 +1,6 @@
 import { sql } from '../db.js'
 import { methodNotAllowed } from '../http.js'
-import { mesDePago, addMonths } from '../billing-cycle.js'
+import { mesEfectivo, mesDePago, addMonths } from '../billing-cycle.js'
 
 // Gastos sueltos: los que no son fijos ni en cuotas. Se cargan por chat o a
 // mano desde la pestaña Gastos sueltos.
@@ -38,10 +38,11 @@ export default async function transactions(req, res, id) {
 
     const conMes = rows.map((r) => ({
       ...r,
+      mes_del_gasto: mesEfectivo(r.fecha, r.cierre_dia),
       mes_de_pago: mesDePago(r.fecha, r.cierre_dia, r.vencimiento_dia),
     }))
 
-    return res.status(200).json(mes ? conMes.filter((r) => r.mes_de_pago === mes) : conMes)
+    return res.status(200).json(mes ? conMes.filter((r) => r.mes_del_gasto === mes) : conMes)
   }
 
   if (!id && req.method === 'POST') {

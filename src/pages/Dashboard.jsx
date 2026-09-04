@@ -79,8 +79,9 @@ export default function Dashboard() {
     <div>
       <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-1">Resumen</h1>
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-        Cada gasto se imputa al mes en que lo pagás. Una compra con tarjeta cae en el mes en que vence el
-        resumen donde entró, así ves con qué sueldo la vas a pagar.
+        Acá ves lo que gastaste en el mes. Una compra con tarjeta cuenta en el mes del resumen al que entró; si la
+        hiciste después del cierre, cae en el mes siguiente. Cuándo se paga cada cosa lo ves en la columna
+        "Se paga en" y en el recuadro del mes que viene.
       </p>
 
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 shadow-sm mb-4 flex flex-wrap items-end gap-3">
@@ -268,7 +269,7 @@ export default function Dashboard() {
                         </td>
                         <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{d.categoria_nombre || '—'}</td>
                         <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{d.medio_nombre || '—'}</td>
-                        <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{d.mes}</td>
+                        <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{d.mes_de_pago || d.mes}</td>
                         <td className="px-4 py-3 text-right font-medium text-gray-800 dark:text-gray-200">
                           {formatMoney(d.monto)}
                         </td>
