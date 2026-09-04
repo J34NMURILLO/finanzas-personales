@@ -92,6 +92,11 @@ export async function computeProjectedGasto(mes, criterio = 'pago') {
   const detalle = []
   let total = 0
 
+  // Si `mes` es el mes del gasto, el pago cae un mes después cuando el
+  // vencimiento de la tarjeta corre; si ya es el mes de pago, es el mismo.
+  const mesDePagoDe = (cierreDia, vencimientoDia) =>
+    criterio === 'pago' ? mes : addMonths(mes, offsetCriterio('pago', cierreDia, vencimientoDia))
+
   for (const fe of fixedExpenses) {
     // Un gasto fijo con tarjeta que cae después del cierre entra al resumen
     // del mes siguiente; si además el vencimiento corre un mes, se paga un
@@ -117,6 +122,7 @@ export async function computeProjectedGasto(mes, criterio = 'pago') {
       categoria_color: fe.categoria_color,
       medio_nombre: fe.medio_nombre,
       card_id: fe.card_id,
+      mes_de_pago: mesDePagoDe(fe.cierre_dia, fe.vencimiento_dia),
     })
   }
 
@@ -144,6 +150,7 @@ export async function computeProjectedGasto(mes, criterio = 'pago') {
       categoria_color: ie.categoria_color,
       medio_nombre: ie.medio_nombre,
       card_id: ie.card_id,
+      mes_de_pago: mesDePagoDe(ie.cierre_dia, ie.vencimiento_dia),
     })
   }
 
