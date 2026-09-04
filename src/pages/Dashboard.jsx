@@ -30,15 +30,27 @@ export default function Dashboard() {
   const [error, setError] = useState('')
 
   useEffect(() => {
+    // Cambiar "desde" y "hasta" seguido dispara pedidos solapados; sin esta
+    // guarda, la respuesta vieja (a veces un error) pisa a la nueva.
+    let vigente = true
     setLoading(true)
     setError('')
     const params = new URLSearchParams({ desde, hasta })
     if (tarjetaId) params.set('tarjeta_id', tarjetaId)
     api
       .get(`/reports?${params.toString()}`)
-      .then(setReport)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false))
+      .then((data) => {
+        if (vigente) setReport(data)
+      })
+      .catch((err) => {
+        if (vigente) setError(err.message)
+      })
+      .finally(() => {
+        if (vigente) setLoading(false)
+      })
+    return () => {
+      vigente = false
+    }
   }, [desde, hasta, tarjetaId])
 
   function resetToCurrentMonth() {
