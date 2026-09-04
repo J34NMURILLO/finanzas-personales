@@ -17,6 +17,9 @@
     { "source": "/api/reports", "destination": "/api/router?resource=reports" },
     { "source": "/api/cron", "destination": "/api/router?resource=cron" },
     { "source": "/api/monthly-periods", "destination": "/api/router?resource=monthly-periods" },
+    { "source": "/api/monthly-periods/:id", "destination": "/api/router?resource=monthly-periods&id=:id" },
+    { "source": "/api/transactions", "destination": "/api/router?resource=transactions" },
+    { "source": "/api/transactions/:id", "destination": "/api/router?resource=transactions&id=:id" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
   "crons": [

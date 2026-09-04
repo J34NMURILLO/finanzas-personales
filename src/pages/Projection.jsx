@@ -17,6 +17,7 @@ export default function Projection() {
   const [error, setError] = useState('')
   const [running, setRunning] = useState(false)
   const [runResult, setRunResult] = useState(null)
+  const [editando, setEditando] = useState(null)
 
   function load() {
     setLoading(true)
@@ -47,9 +48,26 @@ export default function Projection() {
     }
   }
 
+  async function guardarIngreso(periodo, valor) {
+    const monto = Number(valor)
+    if (Number.isNaN(monto) || monto === Number(periodo.ingresos_totales)) {
+      setEditando(null)
+      return
+    }
+    setError('')
+    try {
+      await api.put(`/monthly-periods/${periodo.id}`, { ingresos_totales: monto })
+      await load()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setEditando(null)
+    }
+  }
+
   const chartData = periods.map((p) => ({
     mes: formatMes(p.anio_mes),
-    Ingresos: p.cerrado ? Number(p.ingresos_totales) : 0,
+    Ingresos: Number(p.ingresos_totales),
     Gastos: p.cerrado ? Number(p.gastos_totales) : 0,
     'Gasto proyectado': p.cerrado ? 0 : Number(p.gastos_totales),
   }))
@@ -66,9 +84,13 @@ export default function Projection() {
           {running ? 'Ejecutando...' : 'Ejecutar cierre ahora'}
         </button>
       </div>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+        La columna de gastos acá cuenta <strong>solo gastos fijos y cuotas</strong> — los compromisos que ya sabés
+        que vas a tener. Los gastos sueltos del día a día se ven en el Resumen.
+      </p>
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-        El cierre mensual corre solo todos los días (cron de Vercel). Este botón lo fuerza a mano — es
-        idempotente, no rompe nada si lo apretás de más.
+        El sueldo de cada mes futuro se puede editar: hacé click sobre el importe. El cierre corre solo todos los
+        días y respeta lo que hayas escrito a mano.
       </p>
 
       {error && (
@@ -113,8 +135,8 @@ export default function Projection() {
               <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">
                 <tr>
                   <th className="text-left px-4 py-3 font-medium">Mes</th>
-                  <th className="text-left px-4 py-3 font-medium">Ingresos</th>
-                  <th className="text-left px-4 py-3 font-medium">Gastos</th>
+                  <th className="text-left px-4 py-3 font-medium">Sueldo / ingresos</th>
+                  <th className="text-left px-4 py-3 font-medium">Fijos + cuotas</th>
                   <th className="text-left px-4 py-3 font-medium">Te queda</th>
                   <th className="text-left px-4 py-3 font-medium">Estado</th>
                 </tr>
@@ -123,7 +145,31 @@ export default function Projection() {
                 {periods.map((p) => (
                   <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                     <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{formatMes(p.anio_mes)}</td>
-                    <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{formatMoney(p.ingresos_totales)}</td>
+                    <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
+                      {editando === p.id ? (
+                        <input
+                          type="number"
+                          autoFocus
+                          defaultValue={Number(p.ingresos_totales)}
+                          onBlur={(e) => guardarIngreso(p, e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') e.currentTarget.blur()
+                            if (e.key === 'Escape') setEditando(null)
+                          }}
+                          className="w-36 border border-indigo-400 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-2 py-1 text-sm"
+                        />
+                      ) : p.cerrado ? (
+                        formatMoney(p.ingresos_totales)
+                      ) : (
+                        <button
+                          onClick={() => setEditando(p.id)}
+                          title="Click para editar el sueldo de este mes"
+                          className="underline decoration-dotted underline-offset-4 hover:text-indigo-600 dark:hover:text-indigo-400"
+                        >
+                          {formatMoney(p.ingresos_totales)}
+                        </button>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{formatMoney(p.gastos_totales)}</td>
                     <td
                       className={`px-4 py-3 font-medium ${Number(p.ahorro_real) >= 0 ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'}`}

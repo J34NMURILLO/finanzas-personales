@@ -12,11 +12,11 @@ export default function InstallmentExpenses() {
         { name: 'cuota_actual', label: 'En qué cuota estás', type: 'number', min: 1, required: true, defaultValue: 1 },
         { name: 'cuotas_totales', label: 'Cuántas cuotas son en total', type: 'number', min: 1, required: true },
         {
-          name: 'proxima_cuota',
-          label: 'Cuándo pagás la próxima cuota',
+          name: 'pago_cuota_actual',
+          label: 'Cuándo pagás la cuota actual',
           type: 'date',
           required: true,
-          fromRow: (r) => r.proxima_cuota,
+          fromRow: (r) => r.pago_cuota_actual,
         },
         {
           name: 'tarjeta_id',
@@ -32,9 +32,9 @@ export default function InstallmentExpenses() {
         { key: 'monto_cuota', label: 'Cuota', render: (r) => `$${Number(r.monto_cuota).toLocaleString('es-AR')}` },
         { key: 'progreso', label: 'Progreso', render: (r) => `${r.cuota_actual} / ${r.cuotas_totales}` },
         {
-          key: 'proxima_cuota',
-          label: 'Próxima cuota',
-          render: (r) => (r.cuota_actual > r.cuotas_totales ? 'Terminada' : r.proxima_cuota),
+          key: 'pago_cuota_actual',
+          label: 'Pagás la cuota actual',
+          render: (r) => (r.cuota_actual > r.cuotas_totales ? 'Terminada' : r.pago_cuota_actual),
         },
         {
           key: 'restante',

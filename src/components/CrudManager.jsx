@@ -30,7 +30,16 @@ function emptyForm(fields) {
   return form
 }
 
-export default function CrudManager({ title, endpoint, fields, columns, related = {} }) {
+export default function CrudManager({
+  title,
+  endpoint,
+  fields,
+  columns,
+  related = {},
+  queryParams = null,
+  toolbar = null,
+  descripcion = null,
+}) {
   const [rows, setRows] = useState([])
   const [relatedData, setRelatedData] = useState({})
   const [loading, setLoading] = useState(true)
@@ -41,13 +50,15 @@ export default function CrudManager({ title, endpoint, fields, columns, related 
   const [saving, setSaving] = useState(false)
 
   const relatedKeys = useMemo(() => Object.keys(related), [related])
+  const queryString = queryParams ? new URLSearchParams(queryParams).toString() : ''
 
   async function loadAll() {
     setLoading(true)
     setError('')
     try {
+      const listUrl = queryString ? `${endpoint}?${queryString}` : endpoint
       const [rowsData, ...relatedResults] = await Promise.all([
-        api.get(endpoint),
+        api.get(listUrl),
         ...relatedKeys.map((k) => api.get(related[k])),
       ])
       setRows(rowsData)
@@ -64,7 +75,7 @@ export default function CrudManager({ title, endpoint, fields, columns, related 
   useEffect(() => {
     loadAll()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [endpoint])
+  }, [endpoint, queryString])
 
   function openCreate() {
     setEditingId(null)
@@ -198,7 +209,7 @@ export default function CrudManager({ title, endpoint, fields, columns, related 
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-1">
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{title}</h1>
         <button
           onClick={openCreate}
@@ -207,6 +218,10 @@ export default function CrudManager({ title, endpoint, fields, columns, related 
           + Nuevo
         </button>
       </div>
+
+      {descripcion && <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">{descripcion}</p>}
+      {toolbar && <div className="mb-4">{toolbar}</div>}
+      {!descripcion && !toolbar && <div className="mb-3" />}
 
       {error && (
         <div className="mb-4 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 text-sm rounded-lg px-4 py-2">

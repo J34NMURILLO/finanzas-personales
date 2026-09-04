@@ -160,6 +160,38 @@ export default function Dashboard() {
             </div>
           </div>
 
+          {report.mesSiguiente && (
+            <div className="bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/30 rounded-xl p-4 mb-4">
+              <div className="text-xs font-medium text-indigo-700 dark:text-indigo-300 mb-1">
+                Cómo viene {report.mesSiguiente.mes}
+              </div>
+              <div className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
+                <span className="text-gray-600 dark:text-gray-300">
+                  Sueldo: <strong>{formatMoney(report.mesSiguiente.ingresos)}</strong>
+                </span>
+                <span className="text-gray-600 dark:text-gray-300">
+                  Ya comprometido: <strong>{formatMoney(report.mesSiguiente.gastos)}</strong>
+                </span>
+                <span
+                  className={
+                    report.mesSiguiente.queda >= 0
+                      ? 'text-green-700 dark:text-green-400'
+                      : 'text-orange-700 dark:text-orange-400'
+                  }
+                >
+                  {report.mesSiguiente.queda >= 0 ? 'Va a quedar' : 'Va a faltar'}:{' '}
+                  <strong>{formatMoney(Math.abs(report.mesSiguiente.queda))}</strong>
+                </span>
+              </div>
+              {report.mesSiguiente.yaComprometidoDeEsteMes > 0 && (
+                <div className="text-xs text-indigo-700/80 dark:text-indigo-300/80 mt-2">
+                  Incluye {formatMoney(report.mesSiguiente.yaComprometidoDeEsteMes)} de compras con tarjeta que ya
+                  hiciste y recién se pagan ese mes.
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 shadow-sm">
               <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Gasto por categoría</h2>

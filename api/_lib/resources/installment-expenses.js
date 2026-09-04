@@ -2,11 +2,11 @@ import { sql } from '../db.js'
 import { methodNotAllowed } from '../http.js'
 import { fechaInicioDesdeProximaCuota, proximaCuotaDesdeFechaInicio } from '../projection.js'
 
-// El formulario trabaja con "cuándo pagás la próxima cuota"; la base guarda
-// la fecha de la compra original. Traducimos en el borde.
+// El formulario trabaja con "cuándo pagás la cuota actual" (la que todavía
+// está pendiente); la base guarda la fecha de la compra original.
 async function resolverFechaInicio(body) {
-  const { proxima_cuota, fecha_inicio, cuota_actual, tarjeta_id } = body
-  if (!proxima_cuota) return fecha_inicio || null
+  const { pago_cuota_actual, fecha_inicio, cuota_actual, tarjeta_id } = body
+  if (!pago_cuota_actual) return fecha_inicio || null
 
   let cierreDia = null
   let vencimientoDia = null
@@ -17,7 +17,7 @@ async function resolverFechaInicio(body) {
       vencimientoDia = card.vencimiento_dia
     }
   }
-  return fechaInicioDesdeProximaCuota(proxima_cuota, cuota_actual || 1, cierreDia, vencimientoDia)
+  return fechaInicioDesdeProximaCuota(pago_cuota_actual, cuota_actual || 1, cierreDia, vencimientoDia)
 }
 
 export default async function installmentExpenses(req, res, id) {
@@ -33,7 +33,12 @@ export default async function installmentExpenses(req, res, id) {
     return res.status(200).json(
       rows.map((r) => ({
         ...r,
-        proxima_cuota: proximaCuotaDesdeFechaInicio(r.fecha_inicio, r.cuota_actual, r.cierre_dia, r.vencimiento_dia),
+        pago_cuota_actual: proximaCuotaDesdeFechaInicio(
+          r.fecha_inicio,
+          r.cuota_actual,
+          r.cierre_dia,
+          r.vencimiento_dia,
+        ),
       })),
     )
   }
@@ -42,7 +47,7 @@ export default async function installmentExpenses(req, res, id) {
     const { nombre, monto_cuota, cuotas_totales, cuota_actual, tarjeta_id, categoria_id } = req.body || {}
     const fechaInicio = await resolverFechaInicio(req.body || {})
     if (!nombre || !monto_cuota || !cuotas_totales || !fechaInicio) {
-      return res.status(400).json({ error: 'nombre, monto_cuota, cuotas_totales y la fecha de la próxima cuota son requeridos' })
+      return res.status(400).json({ error: 'nombre, monto_cuota, cuotas_totales y la fecha de pago de la cuota actual son requeridos' })
     }
     if (cuotas_totales < 1) {
       return res.status(400).json({ error: 'cuotas_totales debe ser al menos 1' })
@@ -62,7 +67,7 @@ export default async function installmentExpenses(req, res, id) {
     const { nombre, monto_cuota, cuotas_totales, cuota_actual, tarjeta_id, categoria_id } = req.body || {}
     const fechaInicio = await resolverFechaInicio(req.body || {})
     if (!nombre || !monto_cuota || !cuotas_totales || !fechaInicio) {
-      return res.status(400).json({ error: 'nombre, monto_cuota, cuotas_totales y la fecha de la próxima cuota son requeridos' })
+      return res.status(400).json({ error: 'nombre, monto_cuota, cuotas_totales y la fecha de pago de la cuota actual son requeridos' })
     }
     if (cuota_actual && cuota_actual > cuotas_totales) {
       return res.status(400).json({ error: 'la cuota actual no puede ser mayor al total de cuotas' })

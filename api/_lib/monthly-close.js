@@ -118,21 +118,40 @@ async function refrescarProyeccion() {
     ? toDateStr(ultimoCerrado.anio_mes).slice(0, 7)
     : addMonths(new Date().toISOString().slice(0, 7), -1)
 
-  // Si un mes futuro no tiene ingreso declarado, se asume que se repite el
-  // último ingreso conocido (normalmente el sueldo).
+  // Orden de prioridad para el ingreso de un mes proyectado:
+  //   1. lo declarado en Ingresos para ese mes
+  //   2. lo que el usuario haya escrito a mano en la tabla de Proyección
+  //   3. el último ingreso conocido, arrastrado hacia adelante
   let ultimoIngresoConocido = ultimoCerrado ? Number(ultimoCerrado.ingresos_totales) : 0
 
   const proyectados = []
   for (let i = 1; i <= MESES_PROYECCION; i++) {
     const mes = addMonths(baseMes, i)
-    const [declarado, gastos] = await Promise.all([ingresosDelMes(mes), gastosDelMes(mes)])
 
-    const estimado = declarado > 0
-    const ingresos = estimado ? declarado : ultimoIngresoConocido
-    if (estimado) ultimoIngresoConocido = declarado
+    // La proyección solo mira compromisos: gastos fijos y cuotas. Los gastos
+    // sueltos ya cargados se ven en el Resumen, no acá.
+    const [declarado, { total: gastos }, [existente]] = await Promise.all([
+      ingresosDelMes(mes),
+      computeProjectedGasto(mes),
+      sql`SELECT ingresos_totales FROM monthly_periods WHERE anio_mes = ${`${mes}-01`}`,
+    ])
+
+    let ingresos
+    let origen
+    if (declarado > 0) {
+      ingresos = declarado
+      origen = 'declarado'
+    } else if (existente) {
+      ingresos = Number(existente.ingresos_totales)
+      origen = 'manual'
+    } else {
+      ingresos = ultimoIngresoConocido
+      origen = 'estimado'
+    }
+    ultimoIngresoConocido = ingresos
 
     await upsertPeriodo(mes, { ingresos, gastos, cerrado: false })
-    proyectados.push({ mes, ingresos, gastos, ingresoDeclarado: estimado })
+    proyectados.push({ mes, ingresos, gastos, origen })
   }
   return proyectados
 }

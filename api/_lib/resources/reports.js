@@ -39,11 +39,14 @@ export default async function reports(req, res) {
   }
 
   const meses = monthRange(desde, hasta)
+  // Lo que se consume este mes se suele pagar el mes que viene, así que
+  // también se calcula el mes siguiente para anticipar cómo queda ese sueldo.
+  const mesSiguiente = addMonths(hasta, 1)
 
   // Margen hacia atrás: una compra con tarjeta se paga hasta dos meses
   // después del mes en que se hizo (cierre + vencimiento del mes siguiente).
   const fechaDesdeQuery = `${addMonths(desde, -2)}-01`
-  const fechaHastaQuery = `${addMonths(hasta, 1)}-01`
+  const fechaHastaQuery = `${addMonths(mesSiguiente, 1)}-01`
 
   const [transactions, incomeRows, cards] = await Promise.all([
     sql`
@@ -139,10 +142,32 @@ export default async function reports(req, res) {
     }))
     .filter((r) => mesesSet.has(r.mes))
 
+  // Resumen del mes siguiente: cuánto va a quedar de ese sueldo una vez
+  // pagado todo lo que ya está comprometido (incluido lo que se compró
+  // ahora con tarjeta y recién se paga el mes que viene).
+  const gastosSiguienteSueltos = transactions
+    .filter((t) => mesDePago(t.fecha, t.cierre_dia, t.vencimiento_dia) === mesSiguiente)
+    .reduce((acc, t) => acc + Number(t.monto), 0)
+  const { total: gastosSiguienteComprometidos } = await computeProjectedGasto(mesSiguiente)
+  const ingresosSiguiente = incomeRows
+    .filter((r) => {
+      const mes = r.fecha instanceof Date ? r.fecha.toISOString().slice(0, 7) : String(r.fecha).slice(0, 7)
+      return mes === mesSiguiente
+    })
+    .reduce((acc, r) => acc + Number(r.monto), 0)
+  const gastosSiguiente = gastosSiguienteSueltos + gastosSiguienteComprometidos
+
   res.status(200).json({
     desde,
     hasta,
     meses,
+    mesSiguiente: {
+      mes: mesSiguiente,
+      ingresos: ingresosSiguiente,
+      gastos: gastosSiguiente,
+      queda: ingresosSiguiente - gastosSiguiente,
+      yaComprometidoDeEsteMes: gastosSiguienteSueltos,
+    },
     tarjetas: cards,
     porCategoria: [...categoriaTotales.values()].sort((a, b) => b.monto - a.monto),
     porTarjeta: [...medioTotales.values()].sort((a, b) => b.monto - a.monto),
