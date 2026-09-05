@@ -1,5 +1,6 @@
 import { sql } from './db.js'
 import { getCicloTarjeta, getFechaVencimiento, addMonths, monthsBetween, offsetVencimiento } from './billing-cycle.js'
+import { cotizacionDelDia } from './exchange.js'
 
 function toDateStr(fecha) {
   if (fecha instanceof Date) return fecha.toISOString().slice(0, 10)
@@ -69,7 +70,7 @@ export function fechaPagoCuotaActual(fechaInicio, cuotaActual, cierreDia, vencim
 export async function cargarCompromisos() {
   const [fixedExpenses, installments] = await Promise.all([
     sql`
-      SELECT fe.id, fe.nombre, fe.monto, fe.dia_del_mes, fe.activo_desde, fe.activo_hasta,
+      SELECT fe.id, fe.nombre, fe.monto, fe.moneda, fe.dia_del_mes, fe.activo_desde, fe.activo_hasta,
         fe.categoria_id, cat.nombre AS categoria_nombre, cat.color AS categoria_color,
         cd.cierre_dia, cd.vencimiento_dia,
         COALESCE(cd.nombre, ac.nombre, 'Efectivo') AS medio_nombre, cd.id AS card_id
@@ -88,13 +89,28 @@ export async function cargarCompromisos() {
       LEFT JOIN cards c ON c.id = ie.tarjeta_id
     `,
   ])
-  return { fixedExpenses, installments }
+
+  // Los gastos fijos en dólares (una suscripción, por ejemplo) se convierten
+  // con la cotización de hoy: el mes que viene valen otra cosa en pesos. Solo
+  // se sale a buscar la cotización si hay algo en dólares.
+  let cotizacion = null
+  if (fixedExpenses.some((fe) => fe.moneda === 'USD')) {
+    cotizacion = await cotizacionDelDia()
+  }
+
+  return { fixedExpenses, installments, cotizacion }
+}
+
+function montoEnPesos(fila, cotizacion) {
+  const monto = Number(fila.monto)
+  if (fila.moneda !== 'USD') return monto
+  return Math.round(monto * cotizacion * 100) / 100
 }
 
 // Gastos comprometidos de `mes`: gastos fijos activos + cuotas pendientes.
 // No incluye las transacciones sueltas ya cargadas (se suman en reports.js).
 export async function computeProjectedGasto(mes, criterio = 'pago', compromisos = null) {
-  const { fixedExpenses, installments } = compromisos || (await cargarCompromisos())
+  const { fixedExpenses, installments, cotizacion } = compromisos || (await cargarCompromisos())
 
   const detalle = []
   let total = 0
@@ -117,12 +133,12 @@ export async function computeProjectedGasto(mes, criterio = 'pago', compromisos 
     if (mesCalendario < activoDesde) continue
     if (activoHasta && mesCalendario > activoHasta) continue
 
-    const monto = Number(fe.monto)
+    const monto = montoEnPesos(fe, cotizacion)
     total += monto
     detalle.push({
       tipo: 'fijo',
       id: fe.id,
-      nombre: fe.nombre,
+      nombre: fe.moneda === 'USD' ? `${fe.nombre} (USD ${Number(fe.monto)})` : fe.nombre,
       monto,
       categoria_id: fe.categoria_id,
       categoria_nombre: fe.categoria_nombre,

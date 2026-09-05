@@ -1,5 +1,8 @@
 import { sql } from '../db.js'
 import { methodNotAllowed } from '../http.js'
+import { cotizacionDelDia } from '../exchange.js'
+
+const MONEDAS = ['ARS', 'USD']
 
 export default async function fixedExpenses(req, res, id) {
   if (!id && req.method === 'GET') {
@@ -13,32 +16,48 @@ export default async function fixedExpenses(req, res, id) {
       LEFT JOIN accounts ac ON ac.id = pm.account_id
       ORDER BY (fe.activo_hasta IS NOT NULL AND fe.activo_hasta < CURRENT_DATE), fe.dia_del_mes
     `
-    return res.status(200).json(rows)
+
+    // Los que están en dólares se muestran también convertidos a pesos con la
+    // cotización de hoy, que es la que se va a usar el próximo vencimiento.
+    const hayDolares = rows.some((r) => r.moneda === 'USD')
+    const cotizacion = hayDolares ? await cotizacionDelDia() : null
+    return res.status(200).json(
+      rows.map((r) => ({
+        ...r,
+        cotizacion,
+        monto_en_pesos:
+          r.moneda === 'USD' ? Math.round(Number(r.monto) * cotizacion * 100) / 100 : Number(r.monto),
+      })),
+    )
   }
 
   if (!id && req.method === 'POST') {
-    const { nombre, monto, dia_del_mes, categoria_id, payment_method_id, activo_desde, activo_hasta } = req.body || {}
+    const { nombre, monto, moneda, dia_del_mes, categoria_id, payment_method_id, activo_desde, activo_hasta } =
+      req.body || {}
     if (!nombre || !monto || !dia_del_mes || !activo_desde) {
       return res.status(400).json({ error: 'nombre, monto, dia_del_mes y activo_desde son requeridos' })
     }
     if (dia_del_mes < 1 || dia_del_mes > 31) {
       return res.status(400).json({ error: 'dia_del_mes debe estar entre 1 y 31' })
     }
+    const divisa = MONEDAS.includes(moneda) ? moneda : 'ARS'
     const [row] = await sql`
-      INSERT INTO fixed_expenses (nombre, monto, dia_del_mes, categoria_id, payment_method_id, activo_desde, activo_hasta)
-      VALUES (${nombre}, ${monto}, ${dia_del_mes}, ${categoria_id || null}, ${payment_method_id || null}, ${activo_desde}, ${activo_hasta || null})
+      INSERT INTO fixed_expenses (nombre, monto, moneda, dia_del_mes, categoria_id, payment_method_id, activo_desde, activo_hasta)
+      VALUES (${nombre}, ${monto}, ${divisa}, ${dia_del_mes}, ${categoria_id || null}, ${payment_method_id || null}, ${activo_desde}, ${activo_hasta || null})
       RETURNING *
     `
     return res.status(201).json(row)
   }
 
   if (id && req.method === 'PUT') {
-    const { nombre, monto, dia_del_mes, categoria_id, payment_method_id, activo_desde, activo_hasta } = req.body || {}
+    const { nombre, monto, moneda, dia_del_mes, categoria_id, payment_method_id, activo_desde, activo_hasta } =
+      req.body || {}
     if (!nombre || !monto || !dia_del_mes || !activo_desde) {
       return res.status(400).json({ error: 'nombre, monto, dia_del_mes y activo_desde son requeridos' })
     }
+    const divisa = MONEDAS.includes(moneda) ? moneda : 'ARS'
     const [row] = await sql`
-      UPDATE fixed_expenses SET nombre = ${nombre}, monto = ${monto}, dia_del_mes = ${dia_del_mes},
+      UPDATE fixed_expenses SET nombre = ${nombre}, monto = ${monto}, moneda = ${divisa}, dia_del_mes = ${dia_del_mes},
         categoria_id = ${categoria_id || null}, payment_method_id = ${payment_method_id || null},
         activo_desde = ${activo_desde}, activo_hasta = ${activo_hasta || null}
       WHERE id = ${id}

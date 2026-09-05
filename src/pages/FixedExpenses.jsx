@@ -9,6 +9,16 @@ export default function FixedExpenses() {
       fields={[
         { name: 'nombre', label: 'Nombre', type: 'text', required: true },
         { name: 'monto', label: 'Monto', type: 'number', step: '0.01', required: true },
+        {
+          name: 'moneda',
+          label: 'Moneda',
+          type: 'select',
+          defaultValue: 'ARS',
+          options: [
+            { value: 'ARS', label: 'Pesos' },
+            { value: 'USD', label: 'Dólares (se convierte al oficial del día)' },
+          ],
+        },
         { name: 'dia_del_mes', label: 'Día del mes', type: 'number', min: 1, max: 31, required: true },
         { name: 'categoria_id', label: 'Categoría', type: 'select', optionsFrom: 'categories' },
         {
@@ -33,7 +43,21 @@ export default function FixedExpenses() {
       ]}
       columns={[
         { key: 'nombre', label: 'Nombre' },
-        { key: 'monto', label: 'Monto', render: (r) => `$${Number(r.monto).toLocaleString('es-AR')}` },
+        {
+          key: 'monto',
+          label: 'Monto',
+          render: (r) =>
+            r.moneda === 'USD' ? (
+              <span>
+                ${Number(r.monto_en_pesos).toLocaleString('es-AR')}
+                <span className="block text-xs text-gray-400 dark:text-gray-500">
+                  USD {Number(r.monto).toLocaleString('es-AR')} × ${Number(r.cotizacion).toLocaleString('es-AR')}
+                </span>
+              </span>
+            ) : (
+              `$${Number(r.monto).toLocaleString('es-AR')}`
+            ),
+        },
         { key: 'dia_del_mes', label: 'Día' },
         { key: 'categoria_nombre', label: 'Categoría', render: (r) => r.categoria_nombre || '—' },
         { key: 'payment_method_nombre', label: 'Método de pago', render: (r) => r.payment_method_nombre || '—' },
