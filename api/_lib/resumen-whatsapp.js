@@ -1,25 +1,31 @@
 import { sql } from './db.js'
-import { mesEfectivo, addMonths } from './billing-cycle.js'
-import { computeProjectedGasto } from './projection.js'
+import { mesEfectivo, mesDePago, addMonths } from './billing-cycle.js'
+import { computeProjectedGasto, cargarCompromisos } from './projection.js'
 
-// Resumen rápido de un mes para responder por WhatsApp: mismo criterio que
-// el Resumen web (gasto = mes en que se hizo, no en que se paga), pero
-// condensado a lo que entra cómodo en un mensaje de chat.
+// Mismo criterio que el Resumen web: lo gastado en `mes` (transacciones +
+// gastos fijos + cuotas, por el mes en que se hicieron, no en que se pagan),
+// más cómo viene el sueldo del mes siguiente una vez pagado todo lo que
+// vence ahí. Sin recortar categorías — la versión anterior cortaba a las
+// primeras 5 y escondía cuotas que caían en categorías más chicas.
 export async function resumenMes(mes) {
+  const mesSiguiente = addMonths(mes, 1)
   const fechaDesdeQuery = `${addMonths(mes, -2)}-01`
-  const fechaHastaQuery = `${addMonths(mes, 1)}-01`
+  const fechaHastaQuery = `${addMonths(mesSiguiente, 1)}-01`
 
   const [transactions, incomeRows] = await Promise.all([
     sql`
-      SELECT t.monto, t.fecha, c.nombre AS categoria_nombre, cd.cierre_dia
+      SELECT t.monto, t.fecha, t.categoria_id, c.nombre AS categoria_nombre,
+        pm.card_id, cd.cierre_dia, cd.vencimiento_dia
       FROM transactions t
       LEFT JOIN categories c ON c.id = t.categoria_id
       LEFT JOIN payment_methods pm ON pm.id = t.payment_method_id
       LEFT JOIN cards cd ON cd.id = pm.card_id
       WHERE t.fecha >= ${fechaDesdeQuery} AND t.fecha < ${fechaHastaQuery}
     `,
-    sql`SELECT monto FROM income WHERE fecha >= ${`${mes}-01`} AND fecha < ${fechaHastaQuery}`,
+    sql`SELECT fecha, monto FROM income WHERE fecha >= ${`${mes}-01`} AND fecha < ${fechaHastaQuery}`,
   ])
+
+  const mesDe = (fecha) => (fecha instanceof Date ? fecha.toISOString().slice(0, 7) : String(fecha).slice(0, 7))
 
   const porCategoria = new Map()
   let gastoSuelto = 0
@@ -31,30 +37,54 @@ export async function resumenMes(mes) {
     porCategoria.set(key, (porCategoria.get(key) || 0) + monto)
   }
 
-  const { total: gastoComprometido, detalle } = await computeProjectedGasto(mes, 'devengado')
+  const compromisos = await cargarCompromisos()
+  const { total: gastoComprometido, detalle } = await computeProjectedGasto(mes, 'devengado', compromisos)
   for (const item of detalle) {
     const key = item.categoria_nombre || 'Sin categoría'
     porCategoria.set(key, (porCategoria.get(key) || 0) + item.monto)
   }
 
-  const gastoTotal = gastoSuelto + gastoComprometido
-  const ingresoTotal = incomeRows.reduce((acc, r) => acc + Number(r.monto), 0)
-  const topCategorias = [...porCategoria.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
+  const gastoDelMes = gastoSuelto + gastoComprometido
 
-  return { mes, ingresoTotal, gastoTotal, remanente: ingresoTotal - gastoTotal, topCategorias }
+  // Mes siguiente: qué vence ahí (mes_de_pago), no qué se devengó ese mes.
+  const gastosSiguienteSueltos = transactions
+    .filter((t) => mesDePago(t.fecha, t.cierre_dia, t.vencimiento_dia) === mesSiguiente)
+    .reduce((acc, t) => acc + Number(t.monto), 0)
+  const { total: gastosSiguienteComprometidos } = await computeProjectedGasto(mesSiguiente, 'pago', compromisos)
+  const ingresoSiguiente = incomeRows
+    .filter((r) => mesDe(r.fecha) === mesSiguiente)
+    .reduce((acc, r) => acc + Number(r.monto), 0)
+  const gastoSiguiente = gastosSiguienteSueltos + gastosSiguienteComprometidos
+
+  return {
+    mes,
+    gastoDelMes,
+    porCategoria: [...porCategoria.entries()].sort((a, b) => b[1] - a[1]),
+    mesSiguiente: {
+      mes: mesSiguiente,
+      ingresos: ingresoSiguiente,
+      gastos: gastoSiguiente,
+      remanente: ingresoSiguiente - gastoSiguiente,
+    },
+  }
 }
 
 export function formatearResumenWhatsApp(r) {
   const fmt = (n) => `$${Math.round(n).toLocaleString('es-AR')}`
-  const lineas = [
-    `📊 Resumen de ${r.mes}`,
-    `Ingresos: ${fmt(r.ingresoTotal)}`,
-    `Gastos: ${fmt(r.gastoTotal)}`,
-    r.remanente >= 0 ? `Te queda: ${fmt(r.remanente)}` : `Te falta: ${fmt(-r.remanente)}`,
-  ]
-  if (r.topCategorias.length > 0) {
-    lineas.push('', 'Por categoría:')
-    lineas.push(...r.topCategorias.map(([cat, monto]) => `• ${cat}: ${fmt(monto)}`))
+  const lineas = [`📊 Gastado en ${r.mes}: ${fmt(r.gastoDelMes)}`, '']
+
+  if (r.porCategoria.length > 0) {
+    lineas.push('Por categoría:')
+    lineas.push(...r.porCategoria.map(([cat, monto]) => `• ${cat}: ${fmt(monto)}`))
+    lineas.push('')
   }
+
+  const ms = r.mesSiguiente
+  lineas.push(`💰 Sueldo de ${ms.mes}: ${ms.ingresos > 0 ? fmt(ms.ingresos) : 'todavía no lo declaraste'}`)
+  lineas.push(`Ya comprometido para ese mes: ${fmt(ms.gastos)}`)
+  lineas.push(
+    ms.remanente >= 0 ? `Te va a quedar: ${fmt(ms.remanente)}` : `Te va a faltar: ${fmt(-ms.remanente)}`,
+  )
+
   return lineas.join('\n')
 }
