@@ -1,6 +1,7 @@
 import { methodNotAllowed } from '../http.js'
 import { interpretarGasto } from '../interpret-gasto.js'
 import { enviarWhatsApp, aliasAutorizado } from '../whatsapp.js'
+import { obtenerSesion, guardarSesion, borrarSesion } from '../whatsapp-sessions.js'
 
 // Meta llama a esta misma URL para dos cosas distintas:
 //   GET  -> handshake de verificación, una vez, al configurar el webhook.
@@ -51,8 +52,23 @@ export default async function whatsapp(req, res) {
         return res.status(200).json({ ok: true })
       }
 
-      const resultado = await interpretarGasto([{ role: 'user', content: texto }], 'whatsapp_texto', alias)
+      // Se retoma la conversación pendiente (si la hay) para que un "con la
+      // BBVA" suelto tenga con qué gasto asociarse.
+      const previos = await obtenerSesion(desde)
+      const conversacion = [...previos, { role: 'user', content: texto }]
+
+      const resultado = await interpretarGasto(conversacion, 'whatsapp_texto', alias)
       console.log('WhatsApp webhook: respuesta generada, transaction_id=', resultado.transaction?.id ?? null)
+
+      if (resultado.transaction) {
+        // Gasto cargado: la conversación terminó, el próximo mensaje es uno nuevo.
+        await borrarSesion(desde)
+      } else {
+        // Sigue en curso (pregunta pendiente): se guarda con la respuesta del
+        // bot incluida, para que el próximo mensaje entienda qué se contestó.
+        await guardarSesion(desde, alias, [...conversacion, { role: 'assistant', content: resultado.reply }])
+      }
+
       await enviarWhatsApp(desde, resultado.reply)
       return res.status(200).json({ ok: true })
     } catch (err) {
