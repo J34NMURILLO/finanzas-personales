@@ -21,6 +21,7 @@
     { "source": "/api/transactions", "destination": "/api/router?resource=transactions" },
     { "source": "/api/transactions/:id", "destination": "/api/router?resource=transactions&id=:id" },
     { "source": "/api/whatsapp", "destination": "/api/router?resource=whatsapp" },
+    { "source": "/api/whatsapp-setup", "destination": "/api/router?resource=whatsapp-setup" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
   "crons": [
