@@ -20,6 +20,7 @@
     { "source": "/api/monthly-periods/:id", "destination": "/api/router?resource=monthly-periods&id=:id" },
     { "source": "/api/transactions", "destination": "/api/router?resource=transactions" },
     { "source": "/api/transactions/:id", "destination": "/api/router?resource=transactions&id=:id" },
+    { "source": "/api/whatsapp", "destination": "/api/router?resource=whatsapp" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
   "crons": [

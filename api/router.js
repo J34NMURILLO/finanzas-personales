@@ -10,6 +10,7 @@ import reports from './_lib/resources/reports.js'
 import cron from './_lib/resources/cron.js'
 import monthlyPeriods from './_lib/resources/monthly-periods.js'
 import transactions from './_lib/resources/transactions.js'
+import whatsapp from './_lib/resources/whatsapp.js'
 
 // Router único: Vercel Hobby permite hasta 12 Serverless Functions por
 // deployment. En vez de un archivo por entidad (y otro por [id]), todo
@@ -29,6 +30,7 @@ const RESOURCES = {
   cron,
   'monthly-periods': monthlyPeriods,
   transactions,
+  whatsapp,
 }
 
 export default withErrorHandling(async (req, res) => {
