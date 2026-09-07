@@ -19,29 +19,37 @@ export default async function whatsapp(req, res) {
   }
 
   if (req.method === 'POST') {
-    // Meta espera un 200 rápido y reintenta si no lo recibe a tiempo; el
-    // trabajo real (Claude + base) sigue después, ya con la respuesta enviada.
-    res.status(200).json({ ok: true })
-
+    // Importante: se procesa todo ANTES de responder. En un intento anterior
+    // se respondía 200 primero y se seguía trabajando "en segundo plano",
+    // pero la función quedaba cortada apenas se mandaba la respuesta y ese
+    // trabajo nunca terminaba. Meta tolera unos segundos de espera, así que
+    // no hace falta ese atajo.
     try {
       const mensaje = req.body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]
-      if (!mensaje || mensaje.type !== 'text') return // status de entrega, no un mensaje
+      if (!mensaje || mensaje.type !== 'text') {
+        console.log('WhatsApp webhook: evento sin mensaje de texto, se ignora')
+        return res.status(200).json({ ok: true })
+      }
 
       const desde = mensaje.from
       const texto = mensaje.text.body
       const alias = aliasAutorizado(desde)
+      console.log(`WhatsApp webhook: mensaje de ${desde} (alias=${alias || 'NINGUNO'})`)
 
       if (!alias) {
         await enviarWhatsApp(desde, 'No reconozco este número. Pedile al admin que te autorice.')
-        return
+        return res.status(200).json({ ok: true })
       }
 
       const resultado = await interpretarGasto([{ role: 'user', content: texto }], 'whatsapp_texto', alias)
+      console.log('WhatsApp webhook: respuesta generada, transaction_id=', resultado.transaction?.id ?? null)
       await enviarWhatsApp(desde, resultado.reply)
+      return res.status(200).json({ ok: true })
     } catch (err) {
       console.error('Error procesando mensaje de WhatsApp:', err)
+      // Igual 200: si le devolvemos error, Meta reintenta el mismo mensaje.
+      return res.status(200).json({ ok: true, error: true })
     }
-    return
   }
 
   return methodNotAllowed(res, ['GET', 'POST'])
