@@ -24,8 +24,8 @@ async function intentarEnviar(token, phoneNumberId, destinatario, texto) {
       text: { body: texto },
     }),
   })
-  if (res.ok) return { ok: true }
   const body = await res.json().catch(() => null)
+  if (res.ok) return { ok: true, body }
   return { ok: false, status: res.status, code: body?.error?.code, body }
 }
 
@@ -43,7 +43,10 @@ export async function enviarWhatsApp(destinatario, texto) {
     let ultimoError = null
     for (const variante of variantesNumero(destinatario)) {
       const resultado = await intentarEnviar(token, phoneNumberId, variante, texto)
-      if (resultado.ok) return
+      if (resultado.ok) {
+        console.log('WhatsApp enviado, aceptado por Meta:', JSON.stringify(resultado.body))
+        return
+      }
       ultimoError = resultado
       if (resultado.code !== CODIGO_RECHAZADO) break // otro tipo de error, no tiene sentido reintentar
     }

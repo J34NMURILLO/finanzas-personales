@@ -25,9 +25,19 @@ export default async function whatsapp(req, res) {
     // trabajo nunca terminaba. Meta tolera unos segundos de espera, así que
     // no hace falta ese atajo.
     try {
-      const mensaje = req.body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]
+      const valor = req.body?.entry?.[0]?.changes?.[0]?.value
+      const estado = valor?.statuses?.[0]
+      if (estado) {
+        // Aviso asíncrono de Meta sobre un mensaje que mandamos nosotros:
+        // sent / delivered / read / failed. Acá se ve el motivo real si algo
+        // no llega, cosa que la llamada de envío no siempre sabe todavía.
+        console.log('WhatsApp estado de entrega:', JSON.stringify(estado))
+        return res.status(200).json({ ok: true })
+      }
+
+      const mensaje = valor?.messages?.[0]
       if (!mensaje || mensaje.type !== 'text') {
-        console.log('WhatsApp webhook: evento sin mensaje de texto, se ignora')
+        console.log('WhatsApp webhook: evento sin mensaje de texto ni estado, se ignora')
         return res.status(200).json({ ok: true })
       }
 
