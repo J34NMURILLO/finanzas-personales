@@ -63,8 +63,10 @@ function soloDigitos(s) {
   return String(s || '').replace(/\D/g, '')
 }
 
-// WHATSAPP_USERS: JSON tipo {"5491112345678":"Jean","5491198765432":"Katherine"}
-export function aliasAutorizado(numero) {
+// WHATSAPP_USERS: JSON tipo
+// {"5491112345678":{"alias":"Jean","admin":true},"5491198765432":{"alias":"Katherine","admin":false}}
+// admin=true habilita la herramienta de resúmenes; el resto solo puede cargar gastos.
+export function usuarioAutorizado(numero) {
   let usuarios = {}
   try {
     usuarios = JSON.parse(process.env.WHATSAPP_USERS || '{}')
@@ -73,5 +75,8 @@ export function aliasAutorizado(numero) {
   }
   const buscado = soloDigitos(numero)
   const match = Object.entries(usuarios).find(([tel]) => soloDigitos(tel) === buscado)
-  return match?.[1] || null
+  if (!match) return null
+  const valor = match[1]
+  // Compatibilidad con el formato viejo (solo el alias como string).
+  return typeof valor === 'string' ? { alias: valor, admin: false } : valor
 }

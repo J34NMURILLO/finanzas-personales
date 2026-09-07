@@ -1,6 +1,6 @@
 import { methodNotAllowed } from '../http.js'
 import { interpretarGasto } from '../interpret-gasto.js'
-import { enviarWhatsApp, aliasAutorizado } from '../whatsapp.js'
+import { enviarWhatsApp, usuarioAutorizado } from '../whatsapp.js'
 import { obtenerSesion, guardarSesion, borrarSesion } from '../whatsapp-sessions.js'
 
 // Meta llama a esta misma URL para dos cosas distintas:
@@ -44,10 +44,10 @@ export default async function whatsapp(req, res) {
 
       const desde = mensaje.from
       const texto = mensaje.text.body
-      const alias = aliasAutorizado(desde)
-      console.log(`WhatsApp webhook: mensaje de ${desde} (alias=${alias || 'NINGUNO'})`)
+      const usuario = usuarioAutorizado(desde)
+      console.log(`WhatsApp webhook: mensaje de ${desde} (alias=${usuario?.alias || 'NINGUNO'}, admin=${!!usuario?.admin})`)
 
-      if (!alias) {
+      if (!usuario) {
         await enviarWhatsApp(desde, 'No reconozco este número. Pedile al admin que te autorice.')
         return res.status(200).json({ ok: true })
       }
@@ -57,16 +57,16 @@ export default async function whatsapp(req, res) {
       const previos = await obtenerSesion(desde)
       const conversacion = [...previos, { role: 'user', content: texto }]
 
-      const resultado = await interpretarGasto(conversacion, 'whatsapp_texto', alias)
+      const resultado = await interpretarGasto(conversacion, 'whatsapp_texto', usuario.alias, usuario.admin)
       console.log('WhatsApp webhook: respuesta generada, transaction_id=', resultado.transaction?.id ?? null)
 
-      if (resultado.transaction) {
-        // Gasto cargado: la conversación terminó, el próximo mensaje es uno nuevo.
+      if (resultado.transaction || resultado.esConsulta) {
+        // Gasto cargado o consulta respondida: no queda nada pendiente.
         await borrarSesion(desde)
       } else {
         // Sigue en curso (pregunta pendiente): se guarda con la respuesta del
         // bot incluida, para que el próximo mensaje entienda qué se contestó.
-        await guardarSesion(desde, alias, [...conversacion, { role: 'assistant', content: resultado.reply }])
+        await guardarSesion(desde, usuario.alias, [...conversacion, { role: 'assistant', content: resultado.reply }])
       }
 
       await enviarWhatsApp(desde, resultado.reply)

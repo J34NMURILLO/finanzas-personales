@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { sql } from './db.js'
+import { resumenMes, formatearResumenWhatsApp } from './resumen-whatsapp.js'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -20,10 +21,24 @@ const REGISTRAR_GASTO_TOOL = {
   },
 }
 
+const CONSULTAR_RESUMEN_TOOL = {
+  name: 'consultar_resumen',
+  description:
+    'Devuelve un resumen de ingresos, gastos y las categorías donde más se gastó en un mes. Solo disponible para el administrador.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      mes: { type: 'string', description: 'Mes a consultar en formato YYYY-MM. Si no se especifica, se usa el mes actual.' },
+    },
+  },
+}
+
 // Interpreta una conversación (web o WhatsApp, misma lógica para las dos) y,
-// si hay confianza suficiente, carga el gasto. `origen` queda grabado en la
-// transacción para poder distinguir de dónde vino.
-export async function interpretarGasto(messages, origen, quien = null) {
+// si hay confianza suficiente, carga el gasto o responde un resumen.
+// `origen` queda grabado en la transacción para poder distinguir de dónde
+// vino. `esAdmin` habilita o no la herramienta de resumen: a quien no es
+// admin ni se le ofrece como opción, no es solo una instrucción de texto.
+export async function interpretarGasto(messages, origen, quien = null, esAdmin = false) {
   const [categories, paymentMethods] = await Promise.all([
     sql`SELECT id, nombre FROM categories WHERE tipo = 'gasto' ORDER BY nombre`,
     sql`
@@ -45,8 +60,10 @@ export async function interpretarGasto(messages, origen, quien = null) {
   }
 
   const today = new Date().toISOString().slice(0, 10)
-  const systemPrompt = `Sos el asistente de carga de gastos de una app de finanzas personales${quien ? `, hablando con ${quien}` : ''}. Hoy es ${today}.
-Tu única tarea es interpretar mensajes en español donde te cuentan un gasto que hicieron, y cargarlo con la herramienta "registrar_gasto".
+  const tools = esAdmin ? [REGISTRAR_GASTO_TOOL, CONSULTAR_RESUMEN_TOOL] : [REGISTRAR_GASTO_TOOL]
+
+  const systemPrompt = `Sos el asistente de una app de finanzas personales${quien ? `, hablando con ${quien}` : ''}. Hoy es ${today}.
+Tu tarea es interpretar mensajes en español donde te cuentan un gasto que hicieron, y cargarlo con la herramienta "registrar_gasto".
 
 Categorías de gasto disponibles (usá el id exacto):
 ${categories.map((c) => `- id=${c.id}: ${c.nombre}`).join('\n')}
@@ -54,20 +71,25 @@ ${categories.map((c) => `- id=${c.id}: ${c.nombre}`).join('\n')}
 Métodos de pago disponibles (usá el id exacto):
 ${paymentMethods.map((p) => `- id=${p.id}: ${p.nombre}`).join('\n')}
 
-Reglas:
+Reglas para cargar gastos:
 - Si el monto, la categoría y el método de pago están claros, llamá a "registrar_gasto" directamente, sin confirmar antes.
 - Si el método de pago no se menciona, preguntá con cuál fue (no asumas).
 - Si la categoría no es obvia a partir de la descripción, preguntá o proponé la que te parezca más probable y pedí confirmación.
 - Si falta el monto, preguntalo.
-- Si el usuario no está describiendo un gasto (saluda, pregunta otra cosa, etc.), respondé brevemente y no llames a la herramienta.
+- Nunca inventes un categoria_id o payment_method_id que no esté en las listas de arriba.
 - Las preguntas deben ser cortas, directas y en español rioplatense informal.
-- Nunca inventes un categoria_id o payment_method_id que no esté en las listas de arriba.`
+${
+  esAdmin
+    ? '\nTambién podés llamar a "consultar_resumen" si piden un resumen, un balance, cuánto llevan gastado o cómo viene el mes.'
+    : '\nSolo podés cargar gastos, no dar resúmenes ni balances. Si piden eso, respondé amablemente que por ahora solo cargás gastos y que le consulten a Jean.'
+}
+- Si no están describiendo un gasto ni pidiendo algo que puedas resolver, respondé brevemente y no llames a ninguna herramienta.`
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-5',
     max_tokens: 1024,
     system: systemPrompt,
-    tools: [REGISTRAR_GASTO_TOOL],
+    tools,
     messages: messages.map((m) => ({ role: m.role, content: m.content })),
   })
 
@@ -76,6 +98,14 @@ Reglas:
 
   if (!toolUse) {
     return { reply: textBlock?.text || '¿Podés repetirlo de otra forma?', transaction: null }
+  }
+
+  if (toolUse.name === 'consultar_resumen') {
+    const mes = /^\d{4}-\d{2}$/.test(toolUse.input?.mes || '') ? toolUse.input.mes : today.slice(0, 7)
+    const resumen = await resumenMes(mes)
+    // esConsulta: no es un gasto a medio cargar, no hace falta arrastrar
+    // este intercambio a la conversación siguiente.
+    return { reply: formatearResumenWhatsApp(resumen), transaction: null, esConsulta: true }
   }
 
   const { monto, categoria_id, payment_method_id, fecha, descripcion } = toolUse.input

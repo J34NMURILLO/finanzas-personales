@@ -1,3 +1,4 @@
+import { sql } from '../db.js'
 import { methodNotAllowed } from '../http.js'
 import { runMonthlyClose } from '../monthly-close.js'
 
@@ -16,5 +17,12 @@ export default async function cron(req, res) {
   }
 
   const result = await runMonthlyClose()
-  return res.status(200).json(result)
+
+  // Las sesiones de WhatsApp ya son inválidas después de 20 minutos (ver
+  // whatsapp-sessions.js); esto solo barre las filas que quedaron tiradas.
+  const [{ count: sesionesBorradas }] = await sql`
+    DELETE FROM whatsapp_sessions WHERE updated_at < now() - interval '1 day' RETURNING 1
+  `.then((rows) => [{ count: rows.length }])
+
+  return res.status(200).json({ ...result, sesionesBorradas })
 }
