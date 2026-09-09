@@ -10,6 +10,7 @@ import FixedExpenses from './pages/FixedExpenses'
 import InstallmentExpenses from './pages/InstallmentExpenses'
 import Projection from './pages/Projection'
 import Transactions from './pages/Transactions'
+import WhatsappLog from './pages/WhatsappLog'
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="/cuotas" element={<InstallmentExpenses />} />
           <Route path="/proyeccion" element={<Projection />} />
           <Route path="/gastos-sueltos" element={<Transactions />} />
+          <Route path="/whatsapp-log" element={<WhatsappLog />} />
         </Route>
       </Routes>
     </BrowserRouter>

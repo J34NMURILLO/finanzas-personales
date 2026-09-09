@@ -2,6 +2,7 @@ import { methodNotAllowed } from '../http.js'
 import { interpretarGasto } from '../interpret-gasto.js'
 import { enviarWhatsApp, usuarioAutorizado } from '../whatsapp.js'
 import { obtenerSesion, guardarSesion, borrarSesion } from '../whatsapp-sessions.js'
+import { registrarLog } from '../whatsapp-log.js'
 
 // Meta llama a esta misma URL para dos cosas distintas:
 //   GET  -> handshake de verificación, una vez, al configurar el webhook.
@@ -48,7 +49,11 @@ export default async function whatsapp(req, res) {
       console.log(`WhatsApp webhook: mensaje de ${desde} (alias=${usuario?.alias || 'NINGUNO'}, admin=${!!usuario?.admin})`)
 
       if (!usuario) {
-        await enviarWhatsApp(desde, 'No reconozco este número. Pedile al admin que te autorice.')
+        const respNoAuth = 'No reconozco este número. Pedile al admin que te autorice.'
+        await Promise.all([
+          enviarWhatsApp(desde, respNoAuth),
+          registrarLog({ telefono: desde, alias: 'desconocido', mensaje: texto, respuesta: respNoAuth, resultado: 'no_autorizado' }),
+        ])
         return res.status(200).json({ ok: true })
       }
 
@@ -60,16 +65,29 @@ export default async function whatsapp(req, res) {
       const resultado = await interpretarGasto(conversacion, 'whatsapp_texto', usuario.alias, usuario.admin)
       console.log('WhatsApp webhook: respuesta generada, transaction_id=', resultado.transaction?.id ?? null)
 
-      if (resultado.transaction || resultado.esConsulta) {
-        // Gasto cargado o consulta respondida: no queda nada pendiente.
+      let resultadoTipo
+      if (resultado.transaction) {
+        resultadoTipo = 'gasto_registrado'
+        await borrarSesion(desde)
+      } else if (resultado.esConsulta) {
+        resultadoTipo = 'consulta'
         await borrarSesion(desde)
       } else {
-        // Sigue en curso (pregunta pendiente): se guarda con la respuesta del
-        // bot incluida, para que el próximo mensaje entienda qué se contestó.
+        resultadoTipo = 'pregunta'
         await guardarSesion(desde, usuario.alias, [...conversacion, { role: 'assistant', content: resultado.reply }])
       }
 
-      await enviarWhatsApp(desde, resultado.reply)
+      await Promise.all([
+        enviarWhatsApp(desde, resultado.reply),
+        registrarLog({
+          telefono: desde,
+          alias: usuario.alias,
+          mensaje: texto,
+          respuesta: resultado.reply,
+          resultado: resultadoTipo,
+          transactionId: resultado.transaction?.id ?? null,
+        }),
+      ])
       return res.status(200).json({ ok: true })
     } catch (err) {
       console.error('Error procesando mensaje de WhatsApp:', err)

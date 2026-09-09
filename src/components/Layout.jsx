@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { to: '/ingresos', label: 'Ingresos' },
   { to: '/gastos-fijos', label: 'Gastos fijos' },
   { to: '/cuotas', label: 'Compras en cuotas' },
+  { to: '/whatsapp-log', label: 'WhatsApp log' },
 ]
 
 export default function Layout() {

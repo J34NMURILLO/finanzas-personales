@@ -24,5 +24,9 @@ export default async function cron(req, res) {
     DELETE FROM whatsapp_sessions WHERE updated_at < now() - interval '1 day' RETURNING 1
   `.then((rows) => [{ count: rows.length }])
 
-  return res.status(200).json({ ...result, sesionesBorradas })
+  const [{ count: logsBorrados }] = await sql`
+    DELETE FROM whatsapp_log WHERE created_at < now() - interval '30 days' RETURNING 1
+  `.then((rows) => [{ count: rows.length }])
+
+  return res.status(200).json({ ...result, sesionesBorradas, logsBorrados })
 }
